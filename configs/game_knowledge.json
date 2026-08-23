@@ -1,0 +1,38 @@
+﻿{
+  "walkthrough_roadmap": {
+    "Kings_Pass": {
+      "name": "国王山道 (King''s Pass)",
+      "step_1_start": "从开局平台向右走，跳下台阶。",
+      "step_2_first_bug": "遇到第一只地面爬虫(Crawlid)，正面挥刀2次斩杀，向前走收集爆出的吉欧金币。",
+      "step_3_first_door": "前进到达破损木门，连续起跳挥刀3次击碎木门破障。",
+      "step_4_deep_drop": "穿过木门走到右侧悬崖边缘，直接跳下深坑落入下层洞穴。",
+      "step_5_lower_cavern": "在下层洞穴消灭沿途飞虫与爬虫，挥刀击碎发光的吉欧矿石收集金币。",
+      "step_6_climb_platforms": "向右上方向连续跳跃登上石阶平台，躲避刺坑或利用下劈借力。",
+      "step_7_exit_gate": "在最上方右侧击碎出口大木门，向右进入德特茅斯小镇。"
+    },
+    "Dirtmouth": {
+      "name": "德特茅斯 (Dirtmouth)",
+      "step_1_town": "从山道走出进入小镇，向右穿过虫爷爷(Elderbug)，走到正中间的古井处跳下进入遗忘十字路。"
+    },
+    "Forgotten_Crossroads": {
+      "name": "遗忘十字路 (Forgotten Crossroads)",
+      "step_1_map": "落入十字路后向右下方探索，找到柯尼法(Cornifer)购买十字路地图。",
+      "step_2_boss": "前往中心大殿挑战第一个主线Boss：假骑士(False Knight)。",
+      "step_3_spell": "击败假骑士拾取城市纹章，前往左上方先祖山丘获取核心法术【复仇之魂】。"
+    },
+    "Greenpath": {
+      "name": "苍绿之径 (Greenpath)",
+      "step_1_entry": "使用复仇之魂击败铠甲巴德尔，进入苍绿之径。",
+      "step_2_hornet": "追踪大黄蜂(Hornet)并在决斗中战胜她，获取关键能力【蛾翼披风(冲刺)】。"
+    }
+  },
+  "tactics": {
+    "geo_gathering": "击杀怪物后掉落的橙白金币会自动散落，小骑士必须走近碰撞吸收吉欧；遇到发光的吉欧矿脉需要连续平砍3刀敲碎拾取全部金币。",
+    "combat_combos": {
+      "crawlid": "地面爬虫：正面挥刀2刀斩杀。",
+      "vengefly": "飞行蝇：等待其向下俯冲时起跳挥刀斩击，或在其上方下劈借力。",
+      "wooden_barrier": "木质大门：贴近木门起跳，在空中挥刀斩击3-4次将其劈碎。",
+      "pogo_spikes": "尖刺地带：跳至空中，在尖刺上方按住【下+挥刀(Down+Attack)】实现弹刀飞跃。"
+    }
+  }
+}

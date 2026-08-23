@@ -1,0 +1,47 @@
+﻿# Hollow Knight Vision AI Configuration
+game:
+  window_title: "Hollow Knight"
+  target_fps: 60
+
+vision:
+  capture_method: "mss"
+  hud:
+    health_roi: [0.02, 0.05, 0.16, 0.32]
+    soul_roi: [0.02, 0.01, 0.18, 0.09]
+    geo_roi: [0.15, 0.05, 0.22, 0.18]
+  entity:
+    knight_min_area: 400
+    knight_max_area: 16000
+  ui:
+    show_preview: false
+    save_live_snapshot: true
+    preview_width: 560
+    preview_height: 315
+    preview_pos_x: 1300
+    preview_pos_y: 30
+
+controls:
+  input_backend: "keyboard"
+  keyboard:
+    jump: "z"
+    attack: "x"
+    dash: "c"
+    focus_cast: "a"
+    quick_cast: "s"
+    super_dash: "s"
+    dream_nail: "d"
+    up: "up"
+    down: "down"
+    left: "left"
+    right: "right"
+
+brain:
+  llm:
+    provider: "gemini"
+    model: "gemini-3.6-flash"
+    decision_interval_sec: 2.0 # High-speed 2.0s real-time multimodal stream
+  reflex:
+    pogo_distance_threshold: 140
+    danger_distance_threshold: 160
+    melee_attack_range: 120
+    auto_heal_at_health: 2

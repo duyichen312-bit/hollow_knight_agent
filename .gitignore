@@ -1,0 +1,4 @@
+﻿__pycache__/
+*.pyc
+.tempmediaStorage/
+assets/live_hud.jpg
