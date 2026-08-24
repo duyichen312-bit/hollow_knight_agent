@@ -15,6 +15,7 @@ from core.brain.profile_manager import ProfileManager
 from core.perception.grid_annotator import VisualGridAnnotator
 from core.brain.action_history_buffer import ActionHistoryBuffer
 from core.brain.stage_map_knowledge import StageMapKnowledge
+from core.brain.topological_navigator import TopologicalPlatformNavigator
 
 try:
     from google import genai
@@ -49,7 +50,7 @@ def extract_json_from_text(text: str) -> Optional[dict]:
 
 class VLMPlanner:
     """
-    Spatial ReAct Multimodal Brain with Global Stage Map Knowledge & 0-100 Visual Grid Overlay.
+    Spatial ReAct Multimodal Brain with Topological Platform Graph & Frontier Navigator.
     """
     def __init__(self, config: dict = None):
         self.config = config or {}
@@ -75,6 +76,8 @@ class VLMPlanner:
 
         # Short-term Action Memory Buffer (3 steps)
         self.history_buffer = ActionHistoryBuffer(max_size=3)
+        # Topological Platform Navigator
+        self.topo_nav = TopologicalPlatformNavigator()
 
         # Logs Directory
         self.logs_dir = os.path.join(self.base_dir, "logs")
@@ -188,24 +191,30 @@ class VLMPlanner:
             except Exception:
                 pass
 
-            # Stage 2: Global Map Atlas & Sub-zone Identification
+            # Stage 2: Topological Graph Planning
+            topo_plan = self.topo_nav.plan_next_topological_action(norm_kx, norm_ky)
             stage_knowledge = StageMapKnowledge.get_stage_prompt_context("KINGS_PASS")
             current_subzone = StageMapKnowledge.identify_zone("KINGS_PASS", norm_kx, norm_ky)
 
             # Stage 3: Action Context Buffer (Recent 3 steps)
             history_text = self.history_buffer.format_history_prompt()
 
-            # Stage 4: ReAct Framework Prompt with Global Stage Knowledge
+            # Stage 4: ReAct Framework Prompt with Topological Navigator
             prompt = f"""
 你是一名具备顶级空间几何与关卡拓扑感知能力的《空洞骑士》多模态 ReAct 决策大脑。
 输入图片已叠加 0~100 归一化绿色坐标网格标尺（左上角为(0,0)，右下角为(100,100)）。
 
 {stage_knowledge}
 
+【拓扑路网导航系统实时计算 (Topological Path Planning)】:
+- 当前所在平台: {topo_plan['current_node']}
+- 目标下一平台: {topo_plan['target_node']}
+- 导航推荐动作: {topo_plan['action']} (目标网格 {topo_plan['target_coords']})
+- 拓扑路线依据: {topo_plan['reasoning']}
+
 【小骑士当前精准地标与区域定位】:
 - 当前网格坐标: X={norm_kx}, Y={norm_ky}
 - 判定所处分区: {current_subzone['name']} ({current_subzone['zone_id']})
-- 该区域正确路线: {current_subzone['true_path']}
 - 避坑严重警告: {current_subzone['danger_notes']}
 
 【历史动作时序记忆 (最近 3 步)】:
@@ -214,12 +223,9 @@ class VLMPlanner:
 【当前小骑士状态】:
 - 生命值 (HP): {hud_info.get('health', 5)} / {hud_info.get('max_health', 5)}
 
-【态势感知与决策任务】:
-1. 观察网格：核实小骑士周围的悬空平台、地面尖刺坑、死胡同岩壁的具体网格坐标；
-2. ⚠️ 核心防卡死法则 (CRITICAL ANTI-STUCK RULE):
-   - 如果小骑士处于【下层右侧盲端死胡同 ZONE_C】(X>=72, Y>=58)，右侧是绝对封死的死墙，绝不能向右走！
-   - 唯一通关出路：必须向左移动回撤至中央平台(X=45~55)，然后连续大跳登上悬空立体石阶！
-3. 输出最优 ReAct 战术决策。
+【决策硬法则】:
+1. 观察网格与拓扑导航系统推荐的路径；
+2. ⚠️ 若处于下层右侧 (X>=68, Y>=55)，右侧为绝对封死岩壁，严禁向右！必须向左折返至中央起跳点向上大跳攀登悬空石阶！
 
 【支持 action 动作代码库】:
 - "MOVE_RIGHT" / "MOVE_LEFT" (地面稳步探索移动)
@@ -239,9 +245,9 @@ class VLMPlanner:
   "current_zone": "当前所在分区名称与ID",
   "scene_analysis": "简述小骑士当前网格坐标、周围障碍物/尖刺坐标、平台及出口分布",
   "threat_level": "LOW 或 MEDIUM 或 HIGH 或 CRITICAL",
-  "action": "上述动作代码之一 (例如: JUMP_LEFT 或 JUMP_CLIMB_UP)",
-  "target_coords": [45, 50],
-  "duration_ms": 500,
+  "action": "上述动作代码之一",
+  "target_coords": [50, 52],
+  "duration_ms": 600,
   "reasoning": "基于网格坐标与关卡拓扑推理出的详细战术决策理由"
 }}
 """
@@ -281,40 +287,55 @@ class VLMPlanner:
                 if response and response.text:
                     data = extract_json_from_text(response.text)
 
-            if data and "action" in data:
-                act = data.get("action", "MOVE_RIGHT")
-                data["current_location"] = f"{data.get('current_stage', '国王山道')} | {data.get('current_zone', '探索区')}"
-                data["macro_goal"] = data.get("reasoning", "")
-                data["tactic"] = f"{act} ➔ 目标点 {data.get('target_coords', [0,0])} ({data.get('duration_ms', 400)}ms)"
+            if not data or "action" not in data:
+                data = {
+                    "current_stage": "国王山道 (King\'s Pass)",
+                    "current_zone": current_subzone['name'],
+                    "scene_analysis": f"拓扑导航器接管 (坐标 {norm_kx}, {norm_ky})",
+                    "threat_level": "LOW",
+                    "action": topo_plan["action"],
+                    "target_coords": topo_plan["target_coords"],
+                    "duration_ms": topo_plan["duration_ms"],
+                    "reasoning": topo_plan["reasoning"]
+                }
 
-                if "RIGHT" in act:
-                    data["direction"] = "RIGHT"
-                elif "LEFT" in act or "RETREAT" in act:
-                    data["direction"] = "LEFT"
-                else:
-                    data["direction"] = "RIGHT"
+            # Dead-End Safety Filter: Overrule MOVE_RIGHT on Dead End Node
+            if (norm_kx >= 68.0 and norm_ky >= 55.0) and "RIGHT" in data.get("action", ""):
+                data["action"] = "JUMP_LEFT"
+                data["target_coords"] = [50, 52]
+                data["reasoning"] = "[拓扑硬规则触发] 处于右侧死胡同盲区，强制向左折返跃上中央石阶！"
 
-                if "CLIMB" in act or "JUMP" in act:
-                    data["navigation_mode"] = "UPWARD_CLIMB"
-                    data["vertical_action"] = "JUMP_CLIMB_UP"
-                elif "DROP" in act:
-                    data["navigation_mode"] = "DROP_DOWN"
-                    data["vertical_action"] = "DROP_DOWN"
-                else:
-                    data["navigation_mode"] = "HORIZONTAL_EXPLORE"
-                    data["vertical_action"] = "NONE"
+            act = data.get("action", "MOVE_RIGHT")
+            data["current_location"] = f"{data.get('current_stage', '国王山道')} | {data.get('current_zone', '探索区')}"
+            data["macro_goal"] = data.get("reasoning", "")
+            data["tactic"] = f"{act} ➔ 目标点 {data.get('target_coords', [0,0])} ({data.get('duration_ms', 400)}ms)"
 
-                self.current_strategy = data
-                self.history_buffer.add_step(data, (norm_kx, norm_ky), hud_info.get("health", 5))
-                self._record_decision_log(data, (norm_kx, norm_ky))
+            if "RIGHT" in act:
+                data["direction"] = "RIGHT"
+            elif "LEFT" in act or "RETREAT" in act:
+                data["direction"] = "LEFT"
+            else:
+                data["direction"] = "RIGHT"
 
-                print(f"\n==========================================================================")
-                print(f"  [🗺️ 关卡拓扑定位] {data.get('current_stage')} | {data.get('current_zone')}")
-                print(f"  - 坐标: ({norm_kx}, {norm_ky}) | 威胁: {data.get('threat_level')}")
-                print(f"  - 态势剖析: {data.get('scene_analysis')}")
-                print(f"  - 决策动作: {data.get('action')} ➔ 目标: {data.get('target_coords')} (持续 {data.get('duration_ms')}ms)")
-                print(f"  - 推理依据: {data.get('reasoning')}")
-                print(f"==========================================================================\n")
+            if "CLIMB" in act or "JUMP" in act:
+                data["navigation_mode"] = "UPWARD_CLIMB"
+                data["vertical_action"] = "JUMP_CLIMB_UP"
+            elif "DROP" in act:
+                data["navigation_mode"] = "DROP_DOWN"
+                data["vertical_action"] = "DROP_DOWN"
+            else:
+                data["navigation_mode"] = "HORIZONTAL_EXPLORE"
+                data["vertical_action"] = "NONE"
+
+            self.current_strategy = data
+            self.history_buffer.add_step(data, (norm_kx, norm_ky), hud_info.get("health", 5))
+            self._record_decision_log(data, (norm_kx, norm_ky))
+
+            print(f"\n==========================================================================")
+            print(f"  [🗺️ 拓扑路网规划] {data.get('current_stage')} | {data.get('current_zone')}")
+            print(f"  - 坐标: ({norm_kx}, {norm_ky}) | 动作: {data.get('action')} ➔ 目标: {data.get('target_coords')}")
+            print(f"  - 推理依据: {data.get('reasoning')}")
+            print(f"==========================================================================\n")
 
         except Exception as e:
             err_str = str(e)
