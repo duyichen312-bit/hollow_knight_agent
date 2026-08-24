@@ -2,6 +2,7 @@
 game:
   window_title: "Hollow Knight"
   target_fps: 60
+  toggle_ai_hotkey: "F9" # Press F9 anytime to Pause/Resume AI control
 
 vision:
   capture_method: "mss"
@@ -22,6 +23,7 @@ vision:
 
 controls:
   input_backend: "keyboard"
+  toggle_ai_hotkey: "F9"
   keyboard:
     jump: "z"
     attack: "x"
@@ -37,9 +39,11 @@ controls:
 
 brain:
   llm:
+    profile_id: "gemini_official_paid"
     provider: "gemini"
     model: "gemini-3.6-flash"
-    decision_interval_sec: 2.0 # High-speed 2.0s real-time multimodal stream
+    base_url: ""
+    decision_interval_sec: 2.0
   reflex:
     pogo_distance_threshold: 140
     danger_distance_threshold: 160

@@ -17,6 +17,7 @@ from core.capture import ScreenCapture
 from core.perception.vision_pipeline import VisionPipeline
 from core.ui.visual_debugger import VisualDebugger
 from core.controller.gamepad import GameController
+from core.controller.hotkey_listener import GlobalHotkeyManager
 from core.brain.vlm_planner import VLMPlanner
 from core.brain.state_machine import ReflexStateMachine
 
@@ -66,12 +67,17 @@ def main():
     
     config = {}
     if os.path.exists(config_path):
-        with open(config_path, "r", encoding="utf-8") as f:
-            config = yaml.safe_load(f) or {}
+        try:
+            with open(config_path, "r", encoding="utf-8-sig") as f:
+                config = yaml.safe_load(f) or {}
+        except Exception:
+            pass
 
     ui_cfg = config.get("vision", {}).get("ui", {})
     save_live_snapshot = ui_cfg.get("save_live_snapshot", True)
+    hotkey_name = config.get("controls", {}).get("toggle_ai_hotkey", "F9")
 
+    # 1. Attach and Force-Focus Game Window
     game_hwnd = find_hollow_knight_hwnd()
     force_focus_game(game_hwnd)
 
@@ -79,6 +85,11 @@ def main():
     vision = VisionPipeline(config=config.get("vision", {}))
     debugger = VisualDebugger(config=ui_cfg)
     controller = GameController(config=config.get("controls", {}), game_hwnd=game_hwnd)
+    
+    # 2. Global Hotkey Manager (F9 by default)
+    hotkey_mgr = GlobalHotkeyManager(controller=controller, hotkey_name=hotkey_name)
+    hotkey_mgr.start()
+
     vlm_brain = VLMPlanner(config=config.get("brain", {}).get("llm", {}))
     state_machine = ReflexStateMachine(controller=controller, config=config.get("brain", {}).get("reflex", {}))
 
@@ -105,12 +116,15 @@ def main():
             }
             kx, ky = perception.knight.center
 
-            # Pass current player location to VLM brain for spatial guidance
+            # VLM Background Strategy Planner (Runs asynchronously)
             vlm_brain.update_strategy_async(frame, hud_info, knight_pos=(kx, ky))
             current_strategy = vlm_brain.get_strategy()
 
-            # Execute 2D Metroidvania spatial action
-            active_action = state_machine.step(perception, current_strategy)
+            # Execute actions based on Hotkey state (AI vs Human Manual Control)
+            if hotkey_mgr.is_paused:
+                active_action = f"⏸️ MANUAL_HUMAN_CONTROL (Press [{hotkey_name}] to Resume AI)"
+            else:
+                active_action = state_machine.step(perception, current_strategy)
 
             # FPS calculation
             frame_count += 1
@@ -137,6 +151,7 @@ def main():
     except KeyboardInterrupt:
         pass
     finally:
+        hotkey_mgr.stop()
         controller.release_all()
         capture.close()
 

@@ -9,7 +9,6 @@ sys.path.insert(0, BASE_DIR)
 
 from core.brain.profile_manager import ProfileManager
 
-# High DPI Awareness on Windows
 try:
     import ctypes
     ctypes.windll.shcore.SetProcessDpiAwareness(1)
@@ -19,9 +18,9 @@ except Exception:
 class ModelHubApp:
     def __init__(self, root):
         self.root = root
-        self.root.title("Hollow Knight AI - 大模型配置与控制中心 (v1.1.0)")
-        self.root.geometry("780x680")
-        self.root.minsize(700, 600)
+        self.root.title("Hollow Knight AI - 大模型配置与控制中心 (v1.2.0)")
+        self.root.geometry("800x720")
+        self.root.minsize(720, 640)
         self.root.configure(bg="#1e1e24")
 
         self.pm = ProfileManager(BASE_DIR)
@@ -43,6 +42,7 @@ class ModelHubApp:
         self.style.configure("Title.TLabel", background="#1e1e24", foreground="#ffffff", font=("Microsoft YaHei UI", 16, "bold"))
         self.style.configure("Subtitle.TLabel", background="#1e1e24", foreground="#9a9aa8", font=("Microsoft YaHei UI", 9))
         self.style.configure("Header.TLabel", background="#2b2b36", foreground="#61afef", font=("Microsoft YaHei UI", 11, "bold"))
+        self.style.configure("Banner.TLabel", background="#21252b", foreground="#e5c07b", font=("Microsoft YaHei UI", 10, "bold"))
 
         self.style.configure("Primary.TButton", background="#98c379", foreground="#1e1e24", font=("Microsoft YaHei UI", 10, "bold"), borderwidth=0, padding=8)
         self.style.map("Primary.TButton", background=[("active", "#7eb35e"), ("disabled", "#444450")])
@@ -58,17 +58,23 @@ class ModelHubApp:
 
     def _build_ui(self):
         # 1. Header Title
-        header_frame = ttk.Frame(self.root, padding="16 12 16 8")
+        header_frame = ttk.Frame(self.root, padding="16 12 16 6")
         header_frame.pack(fill="x")
         
         title_lbl = ttk.Label(header_frame, text="⚔️ 《空洞骑士》大模型配置与管理中心", style="Title.TLabel")
         title_lbl.pack(anchor="w")
-        sub_lbl = ttk.Label(header_frame, text="支持 Google 官方、OpenRouter、硅基流动与私有化模型无缝切换 | v1.1.0", style="Subtitle.TLabel")
+        sub_lbl = ttk.Label(header_frame, text="支持大模型快速切换、热键随时暂停/接管、毫秒级心跳诊断 | v1.2.0", style="Subtitle.TLabel")
         sub_lbl.pack(anchor="w", pady=(2, 0))
+
+        # Hotkey Banner
+        banner_frame = tk.Frame(self.root, bg="#282c34", padx=12, pady=6)
+        banner_frame.pack(fill="x", padx=16, pady=(4, 6))
+        hotkey_lbl = tk.Label(banner_frame, text="🎮 全局接管热键: 游戏中随时按 [F9] 暂停 AI 并恢复人工控制，再按 [F9] 重新激活 AI！", bg="#282c34", fg="#e5c07b", font=("Microsoft YaHei UI", 9, "bold"))
+        hotkey_lbl.pack(anchor="w")
 
         # 2. Main Content Card
         main_card = ttk.Frame(self.root, style="Card.TFrame", padding=16)
-        main_card.pack(fill="both", expand=True, padx=16, pady=8)
+        main_card.pack(fill="both", expand=True, padx=16, pady=4)
 
         # Section A: Preset Model Selector
         sec_a_lbl = ttk.Label(main_card, text="📦 选择大模型预设配置包 (Model Profile)", style="Header.TLabel")
@@ -79,7 +85,7 @@ class ModelHubApp:
         self.profile_keys = list(self.profiles.keys())
         
         selector_frame = ttk.Frame(main_card, style="Card.TFrame")
-        selector_frame.pack(fill="x", pady=(0, 12))
+        selector_frame.pack(fill="x", pady=(0, 10))
 
         self.combo = ttk.Combobox(selector_frame, values=profile_names, state="readonly", font=("Microsoft YaHei UI", 10), width=50)
         curr_idx = self.profile_keys.index(self.active_id) if self.active_id in self.profile_keys else 0
@@ -91,35 +97,34 @@ class ModelHubApp:
         apply_btn.pack(side="right")
 
         # Section B: Detail Config Form
-        ttk.Separator(main_card, orient="horizontal").pack(fill="x", pady=10)
+        ttk.Separator(main_card, orient="horizontal").pack(fill="x", pady=8)
         
         form_frame = ttk.Frame(main_card, style="Card.TFrame")
-        form_frame.pack(fill="x", pady=4)
+        form_frame.pack(fill="x", pady=2)
 
-        # Grid form fields
-        ttk.Label(form_frame, text="提供商 (Provider):", style="Card.TLabel").grid(row=0, column=0, sticky="w", pady=4)
+        ttk.Label(form_frame, text="提供商 (Provider):", style="Card.TLabel").grid(row=0, column=0, sticky="w", pady=3)
         self.provider_entry = tk.Entry(form_frame, bg="#1e1e24", fg="#ffffff", insertbackground="#ffffff", relief="flat", font=("Consolas", 10))
-        self.provider_entry.grid(row=0, column=1, sticky="ew", padx=(10, 0), pady=4)
+        self.provider_entry.grid(row=0, column=1, sticky="ew", padx=(10, 0), pady=3)
 
-        ttk.Label(form_frame, text="模型名称 (Model):", style="Card.TLabel").grid(row=1, column=0, sticky="w", pady=4)
+        ttk.Label(form_frame, text="模型名称 (Model):", style="Card.TLabel").grid(row=1, column=0, sticky="w", pady=3)
         self.model_entry = tk.Entry(form_frame, bg="#1e1e24", fg="#ffffff", insertbackground="#ffffff", relief="flat", font=("Consolas", 10))
-        self.model_entry.grid(row=1, column=1, sticky="ew", padx=(10, 0), pady=4)
+        self.model_entry.grid(row=1, column=1, sticky="ew", padx=(10, 0), pady=3)
 
-        ttk.Label(form_frame, text="接口地址 (Base URL):", style="Card.TLabel").grid(row=2, column=0, sticky="w", pady=4)
+        ttk.Label(form_frame, text="接口地址 (Base URL):", style="Card.TLabel").grid(row=2, column=0, sticky="w", pady=3)
         self.base_url_entry = tk.Entry(form_frame, bg="#1e1e24", fg="#ffffff", insertbackground="#ffffff", relief="flat", font=("Consolas", 10))
-        self.base_url_entry.grid(row=2, column=1, sticky="ew", padx=(10, 0), pady=4)
+        self.base_url_entry.grid(row=2, column=1, sticky="ew", padx=(10, 0), pady=3)
 
-        ttk.Label(form_frame, text="决策周期 (秒):", style="Card.TLabel").grid(row=3, column=0, sticky="w", pady=4)
+        ttk.Label(form_frame, text="决策周期 (秒):", style="Card.TLabel").grid(row=3, column=0, sticky="w", pady=3)
         self.interval_entry = tk.Entry(form_frame, bg="#1e1e24", fg="#ffffff", insertbackground="#ffffff", relief="flat", font=("Consolas", 10))
-        self.interval_entry.grid(row=3, column=1, sticky="ew", padx=(10, 0), pady=4)
+        self.interval_entry.grid(row=3, column=1, sticky="ew", padx=(10, 0), pady=3)
 
-        ttk.Label(form_frame, text="API Key 变量名:", style="Card.TLabel").grid(row=4, column=0, sticky="w", pady=4)
+        ttk.Label(form_frame, text="API Key 变量名:", style="Card.TLabel").grid(row=4, column=0, sticky="w", pady=3)
         self.env_var_entry = tk.Entry(form_frame, bg="#1e1e24", fg="#ffffff", insertbackground="#ffffff", relief="flat", font=("Consolas", 10))
-        self.env_var_entry.grid(row=4, column=1, sticky="ew", padx=(10, 0), pady=4)
+        self.env_var_entry.grid(row=4, column=1, sticky="ew", padx=(10, 0), pady=3)
 
-        ttk.Label(form_frame, text="API Key 密钥值:", style="Card.TLabel").grid(row=5, column=0, sticky="w", pady=4)
+        ttk.Label(form_frame, text="API Key 密钥值:", style="Card.TLabel").grid(row=5, column=0, sticky="w", pady=3)
         key_box_frame = ttk.Frame(form_frame, style="Card.TFrame")
-        key_box_frame.grid(row=5, column=1, sticky="ew", padx=(10, 0), pady=4)
+        key_box_frame.grid(row=5, column=1, sticky="ew", padx=(10, 0), pady=3)
         
         self.api_key_entry = tk.Entry(key_box_frame, bg="#1e1e24", fg="#98c379", insertbackground="#ffffff", relief="flat", show="*", font=("Consolas", 10))
         self.api_key_entry.pack(side="left", fill="x", expand=True)
@@ -129,16 +134,14 @@ class ModelHubApp:
 
         form_frame.columnconfigure(1, weight=1)
 
-        # Description text
         self.desc_lbl = ttk.Label(main_card, text="", style="Card.TLabel", wraplength=700, foreground="#abb2bf")
-        self.desc_lbl.pack(anchor="w", pady=(8, 4))
+        self.desc_lbl.pack(anchor="w", pady=(6, 4))
 
-        # Save changes button
         save_prof_btn = ttk.Button(main_card, text="💾 保存并更新此配置包", style="Dark.TButton", command=self._save_current_profile_changes)
-        save_prof_btn.pack(anchor="e", pady=(4, 8))
+        save_prof_btn.pack(anchor="e", pady=(2, 6))
 
-        # Section C: Diagnostic Ping Status Box
-        ttk.Separator(main_card, orient="horizontal").pack(fill="x", pady=8)
+        # Section C: Diagnostic Ping
+        ttk.Separator(main_card, orient="horizontal").pack(fill="x", pady=6)
         
         ping_header = ttk.Frame(main_card, style="Card.TFrame")
         ping_header.pack(fill="x", pady=(2, 4))
@@ -147,7 +150,7 @@ class ModelHubApp:
         self.test_btn = ttk.Button(ping_header, text="⚡ 测试当前配置连通性", style="Accent.TButton", command=self._test_connection)
         self.test_btn.pack(side="right")
 
-        self.log_text = tk.Text(main_card, height=4, bg="#18181f", fg="#98c379", insertbackground="#ffffff", relief="flat", font=("Consolas", 9), padx=8, pady=8)
+        self.log_text = tk.Text(main_card, height=3, bg="#18181f", fg="#98c379", insertbackground="#ffffff", relief="flat", font=("Consolas", 9), padx=8, pady=6)
         self.log_text.pack(fill="x", pady=(4, 0))
         self.log_text.insert("end", "点击上方「测试当前配置连通性」可即时检测网络与模型可用性。\n")
         self.log_text.config(state="disabled")
@@ -247,7 +250,6 @@ class ModelHubApp:
             idx = self.combo.current()
             pid = self.profile_keys[idx] if 0 <= idx < len(self.profile_keys) else self.active_id
             
-            # Save any unsaved inputs temporarily for test
             key_val = self.api_key_entry.get().strip()
             env_var = self.env_var_entry.get().strip()
             if key_val:
@@ -274,7 +276,7 @@ class ModelHubApp:
         bat_path = os.path.join(BASE_DIR, "run_agent.bat")
         if os.path.exists(bat_path):
             os.system(f'start "" "{bat_path}"')
-            self._log_msg("[🚀] Hollow Knight AI Agent 已在后台静默启动！")
+            self._log_msg("[🚀] Hollow Knight AI Agent 已在后台静默启动！(按 F9 可随时暂停/接管)")
 
     def _stop_game_agent(self):
         bat_path = os.path.join(BASE_DIR, "stop_agent.bat")

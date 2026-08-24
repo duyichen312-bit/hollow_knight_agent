@@ -5,16 +5,22 @@ The project adheres to [Semantic Versioning](https://semver.org/).
 
 ---
 
-## [v1.1.0] - 2026-08-24 (Model Profiles Hub & GUI Manager)
+## [v1.2.0] - 2026-08-24 (Global Hotkey F9 AI Pause/Resume)
 
 ### 🌟 New Features & Enhancements:
-- **大模型多预设配置包 (Model Profiles)**:
-  - 提供了预先配置好的各大主流大模型配置包：Google Gemini 官方付费版、OpenRouter (Gemini 2.5 Flash / Qwen 2.5 VL 免费版 / GPT-4o-mini / Claude 3.5 Haiku)、硅基流动 (SiliconFlow) 以及自定义/私有化本地模型 (Ollama/vLLM)。
-- **桌面端可视化控制中心 (Model Hub GUI)**:
-  - 新增 [`launch_model_hub.bat`](./launch_model_hub.bat) 一键启动可视化控制面板 (`model_hub_gui.py`)。
-  - 支持一键下拉切换大模型配置包、在线编辑模型名称/Base URL/API Key、一键执行毫秒级连通性心跳测速，并在界面内一键启动/停止游戏 AI！
-- **全格式兼容调度器 (Universal Profile Manager)**:
-  - 核心大脑 `vlm_planner.py` 与 `profile_manager.py` 全面联动，模型切换实时生效且保持全量日志追踪。
+- **全局接管热键 (Global Hotkey F9 Pause/Resume)**:
+  - 在游戏游玩过程中，随时按下 **`F9`** 键即可**零延迟瞬间暂停 AI 控制**，系统自动释放所有按键并触发低音提示音，人类玩家可立即无缝接管操作！
+  - 再次按下 **`F9`** 键，系统触发高音提示音，**AI 智能体重新无缝接管游戏控制**！
+- **可视化面板联动 (Model Hub Integration)**:
+  - 桌面控制中心界面增加了全局接管热键说明横幅，并在实时 HUD 状态与控制台中同步展示当前是否处于人工接管模式。
+- **高响应原生监听器 (Windows Native Hotkey Listener)**:
+  - 基于 Windows 底层 `GetAsyncKeyState` 实现无依赖、零卡顿全局按键捕获。
+
+---
+
+## [v1.1.0] - 2026-08-24 (Model Profiles Hub & GUI Manager)
+- 大模型多预设配置包与桌面端 GUI 控制中心 (`launch_model_hub.bat`)。
+- 一键切换、配置保存、毫秒级心跳测速与启动。
 
 ---
 
