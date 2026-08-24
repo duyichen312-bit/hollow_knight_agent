@@ -5,13 +5,13 @@ from core.controller.gamepad import GameController
 
 class ReflexStateMachine:
     """
-    Grandmaster Spatial ReAct 2D Cerebellum AI.
-    Executes fine-grained VLM spatial ReAct actions with 60Hz local reflex protection:
+    Grandmaster Spatial ReAct 2D Cerebellum AI with Topological Stage Landmark Guards.
     1. Level 1: Emergency Damage Evasion
     2. Level 1.5: Absolute Human Directive Preemption
-    3. Level 2: Combat Reflexes & Aerial Pogo
-    4. Level 3: Geo Mining & Collection
-    5. Level 4: Fine-grained Spatial ReAct Action Execution (JUMP_DASH / CLIMB / DROP / SLASH)
+    3. Level 1.8: Zone C Dead-End Absolute Reversal (下层右侧死胡同强制掉头熔断)
+    4. Level 2: Combat Reflexes & Aerial Pogo
+    5. Level 3: Geo Mining & Collection
+    6. Level 4: Fine-grained Spatial ReAct Action Execution
     """
     def __init__(self, controller: GameController, config: dict = None):
         self.controller = controller
@@ -48,6 +48,10 @@ class ReflexStateMachine:
         enemies = perception.enemies
         geo_items = perception.geo
         kx, ky = knight.center
+        
+        # Normalized coordinates (0~100)
+        norm_kx = (kx / max(perception.frame_width, 1)) * 100 if hasattr(perception, "frame_width") and perception.frame_width > 0 else (kx / 1920.0) * 100
+        norm_ky = (ky / max(perception.frame_height, 1)) * 100 if hasattr(perception, "frame_height") and perception.frame_height > 0 else (ky / 1080.0) * 100
 
         # Clean expired dead-end cooldowns
         self.dead_end_cooldowns = [w for w in self.dead_end_cooldowns if w[2] > now]
@@ -63,7 +67,7 @@ class ReflexStateMachine:
         self.last_known_health = hud.health
 
         # =========================================================================
-        # LEVEL 1.5: ABSOLUTE HUMAN STRATEGIC OVERRIDE (人类指令最高优先级强行抢占)
+        # LEVEL 1.5: ABSOLUTE HUMAN STRATEGIC OVERRIDE
         # =========================================================================
         is_human_override = (strategy and strategy.get("exploration_phase") == "HUMAN_OVERRIDE_ACTIVE")
         if is_human_override:
@@ -105,6 +109,20 @@ class ReflexStateMachine:
                 return f"HUMAN_SLASH_{override_dir.upper()}"
 
             return f"HUMAN_FORCE_{override_dir.upper()}"
+
+        # =========================================================================
+        # LEVEL 1.8: TOPOLOGICAL DEAD-END HARD INTERVENTION (Zone C 盲端硬熔断)
+        # =========================================================================
+        # If Knight is at bottom right corner (Zone C: X >= 70, Y >= 55) in King's Pass:
+        if norm_kx >= 70.0 and norm_ky >= 55.0:
+            # Force Left Retreat and Jump onto Central Upward Platforms
+            self.locked_explore_dir = "left"
+            self.controller.set_movement("left")
+            if now - self.last_jump_time > 0.85:
+                self.controller.tap_jump(0.38)
+                self.last_jump_time = now
+                return "ZONE_C_ESCAPE_JUMP_LEFT"
+            return "ZONE_C_DEAD_END_FORCE_LEFT"
 
         # =========================================================================
         # LEVEL 2: COMBAT REFLEX: Attack Monsters & Aerial Pogo
@@ -164,7 +182,7 @@ class ReflexStateMachine:
                 return f"COLLECT_GEO_{geo_dir.upper()}"
 
         # =========================================================================
-        # LEVEL 4: SPATIAL ReAct ACTION EXECUTION (空间 ReAct 精细动作执行)
+        # LEVEL 4: SPATIAL ReAct ACTION EXECUTION
         # =========================================================================
         react_action = strategy.get("action", "MOVE_RIGHT") if strategy else "MOVE_RIGHT"
         duration_sec = float(strategy.get("duration_ms", 400)) / 1000.0 if strategy else 0.40
@@ -185,7 +203,7 @@ class ReflexStateMachine:
         elif react_action == "JUMP_CLIMB_UP":
             self.controller.set_movement(self.locked_explore_dir)
             if now - self.last_jump_time > 0.75:
-                self.controller.tap_jump(0.40) # High jump
+                self.controller.tap_jump(0.40)
                 self.last_jump_time = now
                 return "REACT_JUMP_CLIMB_UP"
 
@@ -220,7 +238,6 @@ class ReflexStateMachine:
         nav_dir = "right" if "RIGHT" in react_action else ("left" if "LEFT" in react_action else self.locked_explore_dir)
         self.locked_explore_dir = nav_dir
 
-        # DFS Glance-Back (Once every 2.5s)
         if now - self.last_glance_time > 2.5:
             self.is_glancing_back = True
             self.glance_until = now + 0.18
@@ -235,7 +252,6 @@ class ReflexStateMachine:
             return f"DFS_LOOK_{rear_dir.upper()}"
         self.is_glancing_back = False
 
-        # Exploratory sword slash while advancing
         if now - self.last_attack_time > 1.3:
             self.controller.set_movement(nav_dir)
             self.controller.tap_attack(0.08)

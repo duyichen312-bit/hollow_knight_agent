@@ -9,7 +9,7 @@ user32 = ctypes.windll.user32
 
 class FloatingOverlay:
     """
-    Spatial ReAct Topmost Floating HUD Overlay with 0-100 Grid Feedback and Action Display.
+    Spatial ReAct Topmost Floating HUD Overlay with Global Stage Atlas & Sub-zone Display.
     """
     def __init__(self, title_text: str = "Hollow Knight VLM HUD", 
                  on_override_cb: Optional[Callable] = None,
@@ -25,11 +25,13 @@ class FloatingOverlay:
         self.root: Optional[tk.Tk] = None
         self._thread: Optional[threading.Thread] = None
 
-        # Live State Data (Spatial ReAct)
-        self.status_text = "🟢 AI 自动运行中 (按 [F9] 随时接管)"
+        # Live State Data (Spatial ReAct & Stage Locator)
+        self.status_text = "🟢 AI 空间ReAct决策中 (按 [F9] 随时接管)"
         self.status_color = "#98c379"
         self.provider_info = "Gemini 3.6 Flash"
-        self.scene_analysis_info = "小骑士位于初始区域 (30, 60)，右侧有石阶平台与木门"
+        self.stage_info = "国王山道 (King\'s Pass) - 序章第一关"
+        self.zone_info = "ZONE_A_UPPER_START (上层起始走廊)"
+        self.scene_analysis_info = "小骑士位于初始区域，右侧有石阶平台与木门"
         self.action_info = "MOVE_RIGHT"
         self.target_coords_info = "[60, 60]"
         self.threat_info = "LOW"
@@ -94,7 +96,7 @@ class FloatingOverlay:
         cmd_entry = tk.Entry(entry_frame, bg="#18181f", fg="#ffffff", insertbackground="#ffffff", relief="flat", font=("Microsoft YaHei UI", 11))
         cmd_entry.pack(fill="x", expand=True)
 
-        hint_lbl = tk.Label(box, text="💡 按 [Enter] 提交并恢复控制 | 按 [Esc] 取消 | 范例: '跳跃冲刺过断崖' / '向上大跳爬石台 10s'", bg="#21252b", fg="#5c6370", font=("Microsoft YaHei UI", 8))
+        hint_lbl = tk.Label(box, text="💡 按 [Enter] 提交并恢复控制 | 按 [Esc] 取消 | 范例: '向左回撤并跳上悬空石台' / '连续大跳登顶'", bg="#21252b", fg="#5c6370", font=("Microsoft YaHei UI", 8))
         hint_lbl.pack(anchor="w")
 
         def _cleanup_and_refocus(submitted_text: Optional[str] = None):
@@ -138,6 +140,8 @@ class FloatingOverlay:
     def update_vlm_strategy(self, strategy: Dict[str, Any], provider_name: str = "", is_human_override: bool = False):
         self.is_override_active = is_human_override
         if strategy:
+            self.stage_info = str(strategy.get("current_stage", self.stage_info))
+            self.zone_info = str(strategy.get("current_zone", self.zone_info))
             self.scene_analysis_info = str(strategy.get("scene_analysis", strategy.get("current_location", self.scene_analysis_info)))
             self.action_info = str(strategy.get("action", self.action_info))
             self.target_coords_info = str(strategy.get("target_coords", self.target_coords_info))
@@ -175,9 +179,9 @@ class FloatingOverlay:
         except Exception:
             pass
 
-        # Window Geometry: 780x235
+        # Window Geometry: 800x245
         sw = self.root.winfo_screenwidth()
-        w, h = 780, 235
+        w, h = 800, 245
         x = (sw - w) // 2
         y = 15
         self.root.geometry(f"{w}x{h}+{x}+{y}")
@@ -228,57 +232,69 @@ class FloatingOverlay:
         self.lbl_provider = tk.Label(row1, text=f"🧠 {self.provider_info}", bg="#1e1e24", fg="#61afef", font=("Microsoft YaHei UI", 10, "bold"))
         self.lbl_provider.pack(side="right", padx=12)
 
-        # Row 2: Scene Spatial Perception
+        # Row 2: Stage & Sub-zone Locator (NEW)
         row2 = tk.Frame(container, bg="#1e1e24")
         row2.pack(fill="x", padx=12, pady=(1, 2))
         row2.bind("<Button-1>", _start_move)
         row2.bind("<B1-Motion>", _on_move)
 
-        self.lbl_scene = tk.Label(row2, text=f"📍 态势感知: {self.scene_analysis_info}", bg="#1e1e24", fg="#d19a66", font=("Microsoft YaHei UI", 9, "bold"), anchor="w", wraplength=750)
-        self.lbl_scene.pack(side="left", fill="x", expand=True)
+        self.lbl_stage = tk.Label(row2, text=f"🗺️ 地图: {self.stage_info}", bg="#1e1e24", fg="#61afef", font=("Microsoft YaHei UI", 9, "bold"))
+        self.lbl_stage.pack(side="left")
 
-        # Row 3: Action, Target & Threat Bar
+        self.lbl_zone = tk.Label(row2, text=f"[{self.zone_info}]", bg="#1e1e24", fg="#e5c07b", font=("Microsoft YaHei UI", 9, "bold"))
+        self.lbl_zone.pack(side="left", padx=8)
+
+        # Row 3: Scene Spatial Perception
         row3 = tk.Frame(container, bg="#1e1e24")
         row3.pack(fill="x", padx=12, pady=(1, 2))
         row3.bind("<Button-1>", _start_move)
         row3.bind("<B1-Motion>", _on_move)
 
-        self.lbl_action = tk.Label(row3, text=f"⚔️ 决策动作: {self.action_info} [{self.duration_info}]", bg="#1e1e24", fg="#98c379", font=("Consolas", 10, "bold"))
-        self.lbl_action.pack(side="left")
+        self.lbl_scene = tk.Label(row3, text=f"📍 态势感知: {self.scene_analysis_info}", bg="#1e1e24", fg="#d19a66", font=("Microsoft YaHei UI", 9), anchor="w", wraplength=770)
+        self.lbl_scene.pack(side="left", fill="x", expand=True)
 
-        self.lbl_target = tk.Label(row3, text=f"🎯 目标网格: {self.target_coords_info}", bg="#1e1e24", fg="#61afef", font=("Consolas", 10, "bold"))
-        self.lbl_target.pack(side="left", padx=12)
-
-        self.lbl_threat = tk.Label(row3, text=f"⚠️ 威胁: {self.threat_info}", bg="#1e1e24", fg="#e5c07b", font=("Consolas", 10, "bold"))
-        self.lbl_threat.pack(side="left")
-
-        # Row 4: Spatial Reasoning
+        # Row 4: Action, Target & Threat Bar
         row4 = tk.Frame(container, bg="#1e1e24")
-        row4.pack(fill="x", padx=12, pady=(1, 4))
+        row4.pack(fill="x", padx=12, pady=(1, 2))
         row4.bind("<Button-1>", _start_move)
         row4.bind("<B1-Motion>", _on_move)
 
-        self.lbl_reason = tk.Label(row4, text=f"💡 推理依据: {self.reasoning_info}", bg="#1e1e24", fg="#ffffff", font=("Microsoft YaHei UI", 9), anchor="w", justify="left", wraplength=750)
+        self.lbl_action = tk.Label(row4, text=f"⚔️ 决策动作: {self.action_info} [{self.duration_info}]", bg="#1e1e24", fg="#98c379", font=("Consolas", 10, "bold"))
+        self.lbl_action.pack(side="left")
+
+        self.lbl_target = tk.Label(row4, text=f"🎯 目标网格: {self.target_coords_info}", bg="#1e1e24", fg="#61afef", font=("Consolas", 10, "bold"))
+        self.lbl_target.pack(side="left", padx=12)
+
+        self.lbl_threat = tk.Label(row4, text=f"⚠️ 威胁: {self.threat_info}", bg="#1e1e24", fg="#e5c07b", font=("Consolas", 10, "bold"))
+        self.lbl_threat.pack(side="left")
+
+        # Row 5: Spatial Reasoning
+        row5 = tk.Frame(container, bg="#1e1e24")
+        row5.pack(fill="x", padx=12, pady=(1, 4))
+        row5.bind("<Button-1>", _start_move)
+        row5.bind("<B1-Motion>", _on_move)
+
+        self.lbl_reason = tk.Label(row5, text=f"💡 推理依据: {self.reasoning_info}", bg="#1e1e24", fg="#ffffff", font=("Microsoft YaHei UI", 9), anchor="w", justify="left", wraplength=770)
         self.lbl_reason.pack(side="left", fill="x", expand=True)
 
-        # Row 5: Quick Command Bar
-        row5 = tk.Frame(container, bg="#21252b", padx=6, pady=4)
-        row5.pack(fill="x", padx=8, pady=(2, 4))
+        # Row 6: Quick Command Bar
+        row6 = tk.Frame(container, bg="#21252b", padx=6, pady=4)
+        row6.pack(fill="x", padx=8, pady=(2, 4))
 
-        tk.Label(row5, text="⚡ 战术插队:", bg="#21252b", fg="#98c379", font=("Microsoft YaHei UI", 9, "bold")).pack(side="left", padx=(4, 6))
+        tk.Label(row6, text="⚡ 战术插队:", bg="#21252b", fg="#98c379", font=("Microsoft YaHei UI", 9, "bold")).pack(side="left", padx=(4, 6))
 
         btn_style = {"bg": "#3e4451", "fg": "#ffffff", "activebackground": "#61afef", "activeforeground": "#000000", "relief": "flat", "font": ("Microsoft YaHei UI", 8), "padx": 5, "pady": 1}
 
-        tk.Button(row5, text="⬆️ 向上大跳攀登", command=lambda: self._trigger_override("CLIMB_UP"), **btn_style).pack(side="left", padx=2)
-        tk.Button(row5, text="⬅️ 向左回溯探索", command=lambda: self._trigger_override("FORCE_LEFT"), **btn_style).pack(side="left", padx=2)
-        tk.Button(row5, text="➡️ 向右破门推进", command=lambda: self._trigger_override("FORCE_RIGHT"), **btn_style).pack(side="left", padx=2)
-        tk.Button(row5, text="⬇️ 跳下深坑探秘", command=lambda: self._trigger_override("DROP_DOWN"), **btn_style).pack(side="left", padx=2)
+        tk.Button(row6, text="⬆️ 向上大跳攀登", command=lambda: self._trigger_override("CLIMB_UP"), **btn_style).pack(side="left", padx=2)
+        tk.Button(row6, text="⬅️ 向左回溯探索", command=lambda: self._trigger_override("FORCE_LEFT"), **btn_style).pack(side="left", padx=2)
+        tk.Button(row6, text="➡️ 向右破门推进", command=lambda: self._trigger_override("FORCE_RIGHT"), **btn_style).pack(side="left", padx=2)
+        tk.Button(row6, text="⬇️ 跳下深坑探秘", command=lambda: self._trigger_override("DROP_DOWN"), **btn_style).pack(side="left", padx=2)
         
         btn_text = {"bg": "#61afef", "fg": "#1e1e24", "activebackground": "#4d97d9", "relief": "flat", "font": ("Microsoft YaHei UI", 8, "bold"), "padx": 6, "pady": 1}
-        tk.Button(row5, text="💬 输入文字指令 [F10]", command=self._show_command_dialog, **btn_text).pack(side="left", padx=(6, 2))
+        tk.Button(row6, text="💬 输入文字指令 [F10]", command=self._show_command_dialog, **btn_text).pack(side="left", padx=(6, 2))
 
         btn_reset = {"bg": "#e06c75", "fg": "#ffffff", "activebackground": "#c7515b", "relief": "flat", "font": ("Microsoft YaHei UI", 8, "bold"), "padx": 6, "pady": 1}
-        tk.Button(row5, text="🔄 恢复大模型", command=lambda: self._trigger_override("CLEAR_OVERRIDE"), **btn_reset).pack(side="right", padx=4)
+        tk.Button(row6, text="🔄 恢复大模型", command=lambda: self._trigger_override("CLEAR_OVERRIDE"), **btn_reset).pack(side="right", padx=4)
 
         def _refresh():
             if not self.is_running:
@@ -287,6 +303,8 @@ class FloatingOverlay:
                 self.lbl_status.config(text=self.status_text, fg=self.status_color)
                 self.lbl_fps.config(text=self.fps_info)
                 self.lbl_provider.config(text=f"🧠 {self.provider_info}")
+                self.lbl_stage.config(text=f"🗺️ 地图: {self.stage_info}")
+                self.lbl_zone.config(text=f"[{self.zone_info}]")
                 self.lbl_scene.config(text=f"📍 态势感知: {self.scene_analysis_info}")
                 self.lbl_action.config(text=f"⚔️ 决策动作: {self.action_info} [{self.duration_info}]")
                 self.lbl_target.config(text=f"🎯 目标网格: {self.target_coords_info}")
