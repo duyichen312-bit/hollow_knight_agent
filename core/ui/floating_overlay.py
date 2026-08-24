@@ -2,11 +2,12 @@
 import threading
 import tkinter as tk
 from typing import Optional, Dict, Any, Callable
+from core.brain.text_command_parser import TextCommandParser
 
 class FloatingOverlay:
     """
-    Interactive Topmost Floating HUD Overlay with Human Directive Override Buttons.
-    Allows the user to click quick buttons or use hotkeys to override LLM strategies in real-time.
+    Interactive Topmost Floating HUD Overlay with Summonable Text Command Bar (F10).
+    Allows entering natural language text commands to override LLM strategies in real time.
     """
     def __init__(self, title_text: str = "Hollow Knight VLM HUD", on_override_cb: Optional[Callable] = None):
         self.title_text = title_text
@@ -27,6 +28,8 @@ class FloatingOverlay:
         self.fps_info = "60.0 FPS"
         self.is_override_active = False
 
+        self._cmd_dialog: Optional[tk.Toplevel] = None
+
     def start(self):
         self.is_running = True
         self._thread = threading.Thread(target=self._run_gui, daemon=True)
@@ -39,6 +42,64 @@ class FloatingOverlay:
                 self.root.after(0, self.root.destroy)
             except Exception:
                 pass
+
+    def summon_text_command_box(self):
+        """
+        Summons the interactive Spotlight-style text command bar.
+        Can be triggered via F10 global hotkey or HUD button.
+        """
+        if self.root and self.is_running:
+            self.root.after(0, self._show_command_dialog)
+
+    def _show_command_dialog(self):
+        if self._cmd_dialog and self._cmd_dialog.winfo_exists():
+            self._cmd_dialog.lift()
+            self._cmd_dialog.focus_force()
+            return
+
+        dialog = tk.Toplevel(self.root)
+        dialog.title("输入战术文字指令")
+        sw = dialog.winfo_screenwidth()
+        sh = dialog.winfo_screenheight()
+        w, h = 580, 140
+        x = (sw - w) // 2
+        y = (sh - h) // 3
+        dialog.geometry(f"{w}x{h}+{x}+{y}")
+        dialog.overrideredirect(True)
+        dialog.attributes("-topmost", True)
+        dialog.configure(bg="#21252b")
+
+        box = tk.Frame(dialog, bg="#21252b", highlightbackground="#61afef", highlightthickness=2, padx=14, pady=12)
+        box.pack(fill="both", expand=True)
+
+        lbl = tk.Label(box, text="💬 请输入战术文字指令 (按 [Enter] 执行, [Esc] 取消):", bg="#21252b", fg="#e5c07b", font=("Microsoft YaHei UI", 10, "bold"))
+        lbl.pack(anchor="w", pady=(0, 6))
+
+        entry_frame = tk.Frame(box, bg="#18181f", padx=6, pady=4)
+        entry_frame.pack(fill="x", pady=(0, 8))
+
+        cmd_entry = tk.Entry(entry_frame, bg="#18181f", fg="#ffffff", insertbackground="#ffffff", relief="flat", font=("Microsoft YaHei UI", 11))
+        cmd_entry.pack(fill="x", expand=True)
+        cmd_entry.focus_force()
+
+        hint_lbl = tk.Label(box, text="💡 范例: '向左走10秒探索宝箱' / '连续大跳爬上右上石台' / '就地挥刀破门'", bg="#21252b", fg="#5c6370", font=("Microsoft YaHei UI", 8))
+        hint_lbl.pack(anchor="w")
+
+        def _on_submit(event=None):
+            text = cmd_entry.get().strip()
+            if text:
+                parsed = TextCommandParser.parse_command(text)
+                if parsed and self.on_override_cb:
+                    self.on_override_cb("CUSTOM_TEXT_PLAN", parsed)
+            dialog.destroy()
+
+        def _on_cancel(event=None):
+            dialog.destroy()
+
+        cmd_entry.bind("<Return>", _on_submit)
+        cmd_entry.bind("<Escape>", _on_cancel)
+        dialog.bind("<Escape>", _on_cancel)
+        self._cmd_dialog = dialog
 
     def update_vlm_strategy(self, strategy: Dict[str, Any], provider_name: str = "", is_human_override: bool = False):
         self.is_override_active = is_human_override
@@ -56,16 +117,16 @@ class FloatingOverlay:
             self.status_text = f"⏸️ 人类手动接管中 (按 [{hotkey}] 恢复AI)"
             self.status_color = "#e5c07b"
         elif self.is_override_active:
-            self.status_text = f"🚨 人工指令优先接管中 (优先权高于大模型)"
-            self.status_color = "#e06c75" # Crimson/Red
+            self.status_text = f"🚨 人工指令优先执行中 (按 [F10] 输入新指令)"
+            self.status_color = "#e06c75"
         else:
-            self.status_text = f"🟢 AI 自动运行中 (按 [{hotkey}] 暂停)"
+            self.status_text = f"🟢 AI 自动运行中 (按 [{hotkey}] 暂停 | [F10] 文字指令)"
             self.status_color = "#98c379"
         self.fps_info = f"{fps:.1f} FPS"
 
-    def _trigger_override(self, action_type: str):
+    def _trigger_override(self, action_type: str, custom_data: Optional[dict] = None):
         if self.on_override_cb:
-            self.on_override_cb(action_type)
+            self.on_override_cb(action_type, custom_data)
 
     def _run_gui(self):
         self.root = tk.Tk()
@@ -77,9 +138,9 @@ class FloatingOverlay:
         except Exception:
             pass
 
-        # Window Geometry: 740x220 for rich interaction
+        # Window Geometry: 760x225
         sw = self.root.winfo_screenwidth()
-        w, h = 740, 220
+        w, h = 760, 225
         x = (sw - w) // 2
         y = 15
         self.root.geometry(f"{w}x{h}+{x}+{y}")
@@ -149,7 +210,7 @@ class FloatingOverlay:
         row3.bind("<Button-1>", _start_move)
         row3.bind("<B1-Motion>", _on_move)
 
-        self.lbl_goal = tk.Label(row3, text=f"🚩 目标: {self.macro_goal_info}", bg="#1e1e24", fg="#e5c07b", font=("Microsoft YaHei UI", 9, "bold"), anchor="w", wraplength=710)
+        self.lbl_goal = tk.Label(row3, text=f"🚩 目标: {self.macro_goal_info}", bg="#1e1e24", fg="#e5c07b", font=("Microsoft YaHei UI", 9, "bold"), anchor="w", wraplength=730)
         self.lbl_goal.pack(side="left", fill="x", expand=True)
 
         # Row 4: Tactical Directive
@@ -158,26 +219,28 @@ class FloatingOverlay:
         row4.bind("<Button-1>", _start_move)
         row4.bind("<B1-Motion>", _on_move)
 
-        self.lbl_tactic = tk.Label(row4, text=f"⚔️ 战术: {self.tactic_info}", bg="#1e1e24", fg="#ffffff", font=("Microsoft YaHei UI", 9), anchor="w", justify="left", wraplength=710)
+        self.lbl_tactic = tk.Label(row4, text=f"⚔️ 战术: {self.tactic_info}", bg="#1e1e24", fg="#ffffff", font=("Microsoft YaHei UI", 9), anchor="w", justify="left", wraplength=730)
         self.lbl_tactic.pack(side="left", fill="x", expand=True)
 
-        # Row 5: Quick Human Override Control Bar (NEW: 人工指令强行插队按钮区)
+        # Row 5: Quick Command & Text Bar
         row5 = tk.Frame(container, bg="#21252b", padx=6, pady=4)
         row5.pack(fill="x", padx=8, pady=(2, 4))
 
-        tk.Label(row5, text="⚡ 快速指派:", bg="#21252b", fg="#98c379", font=("Microsoft YaHei UI", 9, "bold")).pack(side="left", padx=(4, 6))
+        tk.Label(row5, text="⚡ 战术指令:", bg="#21252b", fg="#98c379", font=("Microsoft YaHei UI", 9, "bold")).pack(side="left", padx=(4, 6))
 
-        btn_style = {"bg": "#3e4451", "fg": "#ffffff", "activebackground": "#61afef", "activeforeground": "#000000", "relief": "flat", "font": ("Microsoft YaHei UI", 8), "padx": 6, "pady": 1}
+        btn_style = {"bg": "#3e4451", "fg": "#ffffff", "activebackground": "#61afef", "activeforeground": "#000000", "relief": "flat", "font": ("Microsoft YaHei UI", 8), "padx": 5, "pady": 1}
 
-        tk.Button(row5, text="⬆️ 向上大跳攀登", command=lambda: self._trigger_override("CLIMB_UP"), **btn_style).pack(side="left", padx=2)
-        tk.Button(row5, text="⬅️ 向左回溯探索", command=lambda: self._trigger_override("FORCE_LEFT"), **btn_style).pack(side="left", padx=2)
-        tk.Button(row5, text="➡️ 向右破门推进", command=lambda: self._trigger_override("FORCE_RIGHT"), **btn_style).pack(side="left", padx=2)
-        tk.Button(row5, text="⬇️ 跳下深坑探秘", command=lambda: self._trigger_override("DROP_DOWN"), **btn_style).pack(side="left", padx=2)
+        tk.Button(row5, text="⬆️ 向上攀登", command=lambda: self._trigger_override("CLIMB_UP"), **btn_style).pack(side="left", padx=2)
+        tk.Button(row5, text="⬅️ 向左回溯", command=lambda: self._trigger_override("FORCE_LEFT"), **btn_style).pack(side="left", padx=2)
+        tk.Button(row5, text="➡️ 向右推进", command=lambda: self._trigger_override("FORCE_RIGHT"), **btn_style).pack(side="left", padx=2)
+        tk.Button(row5, text="⬇️ 跳下深坑", command=lambda: self._trigger_override("DROP_DOWN"), **btn_style).pack(side="left", padx=2)
         
-        btn_reset = {"bg": "#e06c75", "fg": "#ffffff", "activebackground": "#c7515b", "relief": "flat", "font": ("Microsoft YaHei UI", 8, "bold"), "padx": 6, "pady": 1}
-        tk.Button(row5, text="🔄 恢复大模型自主", command=lambda: self._trigger_override("CLEAR_OVERRIDE"), **btn_reset).pack(side="right", padx=4)
+        btn_text = {"bg": "#61afef", "fg": "#1e1e24", "activebackground": "#4d97d9", "relief": "flat", "font": ("Microsoft YaHei UI", 8, "bold"), "padx": 6, "pady": 1}
+        tk.Button(row5, text="💬 输入文字指令 [F10]", command=self._show_command_dialog, **btn_text).pack(side="left", padx=(6, 2))
 
-        # Refresh loop
+        btn_reset = {"bg": "#e06c75", "fg": "#ffffff", "activebackground": "#c7515b", "relief": "flat", "font": ("Microsoft YaHei UI", 8, "bold"), "padx": 6, "pady": 1}
+        tk.Button(row5, text="🔄 恢复大模型", command=lambda: self._trigger_override("CLEAR_OVERRIDE"), **btn_reset).pack(side="right", padx=4)
+
         def _refresh():
             if not self.is_running:
                 return

@@ -8,6 +8,7 @@ import win32process
 import win32con
 import psutil
 import ctypes
+from typing import Optional
 from dotenv import load_dotenv
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -93,24 +94,39 @@ def main():
     hotkey_mgr = GlobalHotkeyManager(controller=controller, hotkey_name=hotkey_name)
     hotkey_mgr.start()
 
-    # 3. Human Strategic Override System (人类指令插队系统)
-    human_override = HumanDirectiveOverride()
+    # 3. Floating Overlay Forward Declaration
+    overlay = None
+
+    # 4. Human Strategic Override System with F10 Hotkey
+    def on_f10_press():
+        if overlay:
+            overlay.summon_text_command_box()
+
+    human_override = HumanDirectiveOverride(on_f10_callback=on_f10_press)
     human_override.start_hotkey_listener()
 
-    # 4. Floating HUD Overlay Callback
-    def on_overlay_override_click(action_type: str):
-        if action_type == "CLIMB_UP":
-            human_override.inject_directive("向上大跳攀登新阶梯", "RIGHT", "UPWARD_CLIMB", "JUMP_CLIMB_UP", "长蓄力连续大跳登上层层石阶平台", 15.0)
+    # 5. Floating HUD Callback for Buttons & Text Input
+    def on_overlay_override_click(action_type: str, custom_data: Optional[dict] = None):
+        if action_type == "CUSTOM_TEXT_PLAN" and custom_data:
+            human_override.inject_directive(
+                name=custom_data.get("name", "文字指令"),
+                direction=custom_data.get("direction", "RIGHT"),
+                nav_mode=custom_data.get("navigation_mode", "HORIZONTAL_EXPLORE"),
+                vert_action=custom_data.get("vertical_action", "NONE"),
+                tactic=custom_data.get("tactic", ""),
+                duration=custom_data.get("duration", 15.0)
+            )
+        elif action_type == "CLIMB_UP":
+            human_override.inject_directive("强制向上大跳攀登新阶梯", "RIGHT", "UPWARD_CLIMB", "JUMP_CLIMB_UP", "长蓄力连续大跳登上层层石阶平台", 15.0)
         elif action_type == "FORCE_LEFT":
-            human_override.inject_directive("向左深度探索/回溯", "LEFT", "HORIZONTAL_EXPLORE", "NONE", "稳步向左侧探索隐藏支线与金币宝箱", 15.0)
+            human_override.inject_directive("强制向左深度探索/回溯", "LEFT", "HORIZONTAL_EXPLORE", "NONE", "稳步向左侧探索隐藏支线与金币宝箱", 15.0)
         elif action_type == "FORCE_RIGHT":
-            human_override.inject_directive("向右破门主线推进", "RIGHT", "HORIZONTAL_EXPLORE", "NONE", "向右破门推进，消灭爬虫与障碍", 15.0)
+            human_override.inject_directive("强制向右破门主线推进", "RIGHT", "HORIZONTAL_EXPLORE", "NONE", "向右破门推进，消灭爬虫与障碍", 15.0)
         elif action_type == "DROP_DOWN":
-            human_override.inject_directive("向下跃下深坑探秘", "RIGHT", "DROP_DOWN", "DROP_DOWN", "走到悬崖边缘跳下深坑进入下层", 15.0)
+            human_override.inject_directive("强制向下跃下深坑探秘", "RIGHT", "DROP_DOWN", "DROP_DOWN", "走到悬崖边缘跳下深坑进入下层", 15.0)
         elif action_type == "CLEAR_OVERRIDE":
             human_override.clear_override()
 
-    overlay = None
     if enable_overlay:
         overlay = FloatingOverlay(on_override_cb=on_overlay_override_click)
         overlay.start()
@@ -145,7 +161,7 @@ def main():
             vlm_brain.update_strategy_async(frame, hud_info, knight_pos=(kx, ky))
             vlm_strategy = vlm_brain.get_strategy()
 
-            # Priority 1: Check if Human Directive Override is active!
+            # Priority 1: Check Human Directive Override
             override_strat = human_override.get_active_override_strategy()
             if override_strat:
                 effective_strategy = override_strat

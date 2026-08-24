@@ -2,7 +2,7 @@
 import ctypes
 import threading
 import winsound
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, Callable
 
 user32 = ctypes.windll.user32
 
@@ -10,12 +10,14 @@ class HumanDirectiveOverride:
     """
     Human Strategic Directive Override System.
     Guarantees 100% immediate preemption of all LLM and local navigation states.
+    Supports global hotkeys and F10 summonable text command bar.
     """
-    def __init__(self):
+    def __init__(self, on_f10_callback: Optional[Callable] = None):
         self.is_active = False
         self.override_until = 0.0
         self.directive_name = ""
         self.override_strategy: Dict[str, Any] = {}
+        self.on_f10_callback = on_f10_callback
         self._running = False
         self._thread: Optional[threading.Thread] = None
 
@@ -82,33 +84,37 @@ class HumanDirectiveOverride:
         VK_DOWN = 0x28
         VK_BACK = 0x08
         VK_NUMPAD0 = 0x60
+        VK_F10 = 0x79
 
         while self._running:
-            # Check if Ctrl is held down
-            ctrl_down = (user32.GetAsyncKeyState(VK_CONTROL) & 0x8000) != 0
+            # 1. Global F10 Hotkey: Summon Text Command Bar
+            if (user32.GetAsyncKeyState(VK_F10) & 0x8000) != 0:
+                if self.on_f10_callback:
+                    try:
+                        self.on_f10_callback()
+                    except Exception:
+                        pass
+                time.sleep(0.35)
 
+            # 2. Ctrl + Directional Shortcuts
+            ctrl_down = (user32.GetAsyncKeyState(VK_CONTROL) & 0x8000) != 0
             if ctrl_down:
-                # Ctrl + Left -> Force Left
                 if (user32.GetAsyncKeyState(VK_LEFT) & 0x8000) != 0:
                     self.inject_directive("强制向左深度探索/回溯", "LEFT", "HORIZONTAL_EXPLORE", "NONE", "稳步向左侧探索隐藏支线与金币宝箱", 15.0)
                     time.sleep(0.35)
 
-                # Ctrl + Right -> Force Right
                 elif (user32.GetAsyncKeyState(VK_RIGHT) & 0x8000) != 0:
                     self.inject_directive("强制向右破门主线推进", "RIGHT", "HORIZONTAL_EXPLORE", "NONE", "向右破门推进，消灭爬虫与障碍", 15.0)
                     time.sleep(0.35)
 
-                # Ctrl + Up -> Force Upward Platform Climbing
                 elif (user32.GetAsyncKeyState(VK_UP) & 0x8000) != 0:
                     self.inject_directive("强制向上大跳攀登新阶梯", "RIGHT", "UPWARD_CLIMB", "JUMP_CLIMB_UP", "长蓄力连续大跳登上层层石阶平台", 15.0)
                     time.sleep(0.35)
 
-                # Ctrl + Down -> Force Downward Drop
                 elif (user32.GetAsyncKeyState(VK_DOWN) & 0x8000) != 0:
                     self.inject_directive("强制向下跃下深坑探秘", "RIGHT", "DROP_DOWN", "DROP_DOWN", "走到悬崖边缘跳下深坑进入下层", 15.0)
                     time.sleep(0.35)
 
-                # Ctrl + Backspace / NumPad 0 -> Clear Override
                 elif ((user32.GetAsyncKeyState(VK_BACK) & 0x8000) != 0) or ((user32.GetAsyncKeyState(VK_NUMPAD0) & 0x8000) != 0):
                     self.clear_override()
                     time.sleep(0.35)
