@@ -16,6 +16,7 @@ sys.path.insert(0, BASE_DIR)
 from core.capture import ScreenCapture
 from core.perception.vision_pipeline import VisionPipeline
 from core.ui.visual_debugger import VisualDebugger
+from core.ui.floating_overlay import FloatingOverlay
 from core.controller.gamepad import GameController
 from core.controller.hotkey_listener import GlobalHotkeyManager
 from core.brain.vlm_planner import VLMPlanner
@@ -75,6 +76,7 @@ def main():
 
     ui_cfg = config.get("vision", {}).get("ui", {})
     save_live_snapshot = ui_cfg.get("save_live_snapshot", True)
+    enable_overlay = ui_cfg.get("enable_floating_overlay", True)
     hotkey_name = config.get("controls", {}).get("toggle_ai_hotkey", "F9")
 
     # 1. Attach and Force-Focus Game Window
@@ -86,9 +88,15 @@ def main():
     debugger = VisualDebugger(config=ui_cfg)
     controller = GameController(config=config.get("controls", {}), game_hwnd=game_hwnd)
     
-    # 2. Global Hotkey Manager (F9 by default)
+    # 2. Global Hotkey Manager (F9)
     hotkey_mgr = GlobalHotkeyManager(controller=controller, hotkey_name=hotkey_name)
     hotkey_mgr.start()
+
+    # 3. Topmost Floating HUD Overlay (屏幕最前端无感悬浮窗)
+    overlay = None
+    if enable_overlay:
+        overlay = FloatingOverlay()
+        overlay.start()
 
     vlm_brain = VLMPlanner(config=config.get("brain", {}).get("llm", {}))
     state_machine = ReflexStateMachine(controller=controller, config=config.get("brain", {}).get("reflex", {}))
@@ -116,9 +124,14 @@ def main():
             }
             kx, ky = perception.knight.center
 
-            # VLM Background Strategy Planner (Runs asynchronously)
+            # VLM Background Strategy Planner
             vlm_brain.update_strategy_async(frame, hud_info, knight_pos=(kx, ky))
             current_strategy = vlm_brain.get_strategy()
+
+            # Update Floating Overlay HUD in real time
+            if overlay:
+                overlay.update_vlm_strategy(current_strategy, provider_name=vlm_brain.model_name)
+                overlay.update_control_status(is_paused=hotkey_mgr.is_paused, hotkey=hotkey_name, fps=current_fps)
 
             # Execute actions based on Hotkey state (AI vs Human Manual Control)
             if hotkey_mgr.is_paused:
@@ -151,6 +164,8 @@ def main():
     except KeyboardInterrupt:
         pass
     finally:
+        if overlay:
+            overlay.stop()
         hotkey_mgr.stop()
         controller.release_all()
         capture.close()

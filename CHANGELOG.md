@@ -5,25 +5,31 @@ The project adheres to [Semantic Versioning](https://semver.org/).
 
 ---
 
-## [v1.2.0] - 2026-08-24 (Global Hotkey F9 AI Pause/Resume)
+## [v1.3.0] - 2026-08-24 (Always-on-Top Floating VLM HUD Overlay)
 
 ### 🌟 New Features & Enhancements:
-- **全局接管热键 (Global Hotkey F9 Pause/Resume)**:
-  - 在游戏游玩过程中，随时按下 **`F9`** 键即可**零延迟瞬间暂停 AI 控制**，系统自动释放所有按键并触发低音提示音，人类玩家可立即无缝接管操作！
-  - 再次按下 **`F9`** 键，系统触发高音提示音，**AI 智能体重新无缝接管游戏控制**！
-- **可视化面板联动 (Model Hub Integration)**:
-  - 桌面控制中心界面增加了全局接管热键说明横幅，并在实时 HUD 状态与控制台中同步展示当前是否处于人工接管模式。
-- **高响应原生监听器 (Windows Native Hotkey Listener)**:
-  - 基于 Windows 底层 `GetAsyncKeyState` 实现无依赖、零卡顿全局按键捕获。
+- **屏幕最前端无感悬浮战术 HUD (Floating HUD Overlay)**:
+  - 启动游戏后，屏幕顶部中央会自动浮现一个**暗色半透明无边框战术悬浮窗** (`core/ui/floating_overlay.py`)。
+  - **实时显示**:
+    1. 🟢 运行状态与热键提示（`AI 自动运行中 / 人类手动接管中 - 按 F9 切换`）；
+    2. 🧠 当前调用的大模型与实时 FPS（如 `Gemini 3.6 Flash | 60.0 FPS`）；
+    3. 📍 实时场景与地形定位（如 `场景: 国王山道下层洞穴区（右侧阶梯平台起点）`）；
+    4. ⚔️ 大模型实时微操战术（如 `战术: 沿右上平台连续大跳攀爬，避开刺坑并消灭沿途飞虫`）。
+  - **防焦点争抢与自由拖拽**:
+    - 基于 Win32 `WS_EX_NOACTIVATE` 底层机制，**悬浮窗绝不抢夺游戏焦点与键盘输入**，小骑士操作丝滑流畅；
+    - 支持鼠标按住悬浮窗自由拖拽到屏幕任意位置。
+
+---
+
+## [v1.2.0] - 2026-08-24 (Global Hotkey F9 AI Pause/Resume)
+- 全局随时接管热键 `F9`：一键暂停 AI 恢复人工操作，再按一键恢复 AI。
 
 ---
 
 ## [v1.1.0] - 2026-08-24 (Model Profiles Hub & GUI Manager)
 - 大模型多预设配置包与桌面端 GUI 控制中心 (`launch_model_hub.bat`)。
-- 一键切换、配置保存、毫秒级心跳测速与启动。
 
 ---
 
 ## [v1.0.0-stable] - 2026-08-24 (Baseline Release)
 - 双环架构（Gemini 3.6 Flash VLM 战略大脑 + 60Hz 本地战术小脑）。
-- 2D 银河恶魔城立体导航、长程死胡同脱困、DFS 节奏回眸与全量决策日志持久化。
