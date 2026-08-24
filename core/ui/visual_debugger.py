@@ -1,8 +1,17 @@
-﻿import cv2
+﻿import re
+import cv2
 import numpy as np
 import time
 from typing import Dict, Any, Optional
 from core.perception.vision_pipeline import FramePerception
+
+def clean_ascii(text: str) -> str:
+    """Strips non-ascii / non-printable characters to prevent OpenCV C++ font assertion crashes."""
+    if not text:
+        return ""
+    # Keep standard ascii and basic punctuation
+    cleaned = re.sub(r"[^\x20-\x7E]", "_", str(text))
+    return cleaned
 
 class VisualDebugger:
     def __init__(self, config: dict = None):
@@ -18,54 +27,57 @@ class VisualDebugger:
         strategy_info: Optional[Dict[str, Any]] = None,
         active_action: Optional[str] = None
     ) -> np.ndarray:
-        overlay = frame.copy()
-        h, w = overlay.shape[:2]
-        kx, ky = perception.knight.center
+        try:
+            overlay = frame.copy()
+            h, w = overlay.shape[:2]
+            kx, ky = perception.knight.center
 
-        # 1. Draw Monsters & Barriers
-        for enemy in perception.enemies:
-            ex, ey, ew, eh = enemy.bbox
-            ecx, ecy = enemy.center
-            color = (0, 80, 255) if enemy.category == "BOSS" else ((0, 160, 255) if enemy.category == "FLYER" else (0, 220, 255))
-            self._draw_corner_brackets(overlay, (ex, ey, ew, eh), color, length=12, thickness=2)
-            cv2.line(overlay, (kx, ky), (ecx, ecy), color, 1, cv2.LINE_AA)
-            
-            tag = f"{enemy.category} [{int(enemy.distance_to_knight)}px]"
-            if enemy.distance_to_knight < 140 and ky < ecy:
-                tag += " [POGO READY!]"
-            cv2.putText(overlay, tag, (ex, max(ey - 8, 15)), self.font, 0.45, color, 1, cv2.LINE_AA)
+            # 1. Draw Monsters & Barriers
+            for enemy in perception.enemies:
+                ex, ey, ew, eh = enemy.bbox
+                ecx, ecy = enemy.center
+                color = (0, 80, 255) if enemy.category == "BOSS" else ((0, 160, 255) if enemy.category == "FLYER" else (0, 220, 255))
+                self._draw_corner_brackets(overlay, (ex, ey, ew, eh), color, length=12, thickness=2)
+                cv2.line(overlay, (kx, ky), (ecx, ecy), color, 1, cv2.LINE_AA)
+                
+                tag = f"{enemy.category} [{int(enemy.distance_to_knight)}px]"
+                if enemy.distance_to_knight < 140 and ky < ecy:
+                    tag += " [POGO READY!]"
+                cv2.putText(overlay, tag, (ex, max(ey - 8, 15)), self.font, 0.45, color, 1, cv2.LINE_AA)
 
-        # 2. Draw Geo Coins & Rocks
-        for g in getattr(perception, "geo", []):
-            gx, gy, gw, gh = g.bbox
-            gcx, gcy = g.center
-            gold_color = (0, 215, 255) # BGR Gold
-            self._draw_corner_brackets(overlay, (gx, gy, gw, gh), gold_color, length=10, thickness=2)
-            cv2.line(overlay, (kx, ky), (gcx, gcy), (0, 200, 255), 1, cv2.LINE_AA)
-            g_tag = "GEO ROCK" if g.is_deposit_rock else "GEO COIN"
-            cv2.putText(overlay, f"{g_tag} [{int(g.distance_to_knight)}px]", (gx, max(gy - 6, 12)), self.font, 0.42, gold_color, 1, cv2.LINE_AA)
+            # 2. Draw Geo Coins & Rocks
+            for g in getattr(perception, "geo", []):
+                gx, gy, gw, gh = g.bbox
+                gcx, gcy = g.center
+                gold_color = (0, 215, 255)
+                self._draw_corner_brackets(overlay, (gx, gy, gw, gh), gold_color, length=10, thickness=2)
+                cv2.line(overlay, (kx, ky), (gcx, gcy), (0, 200, 255), 1, cv2.LINE_AA)
+                g_tag = "GEO ROCK" if g.is_deposit_rock else "GEO COIN"
+                cv2.putText(overlay, f"{g_tag} [{int(g.distance_to_knight)}px]", (gx, max(gy - 6, 12)), self.font, 0.42, gold_color, 1, cv2.LINE_AA)
 
-        # 3. Draw The Knight
-        if perception.knight.is_detected:
-            x, y, kw, kh = perception.knight.bbox
-            cyan_color = (255, 255, 0)
-            self._draw_corner_brackets(overlay, (x, y, kw, kh), cyan_color, length=15, thickness=2)
-            
-            vx, vy = perception.knight.velocity
-            target_pt = (int(kx + vx * 0.2), int(ky + vy * 0.2))
-            cv2.arrowedLine(overlay, (kx, ky), target_pt, (255, 200, 0), 2, cv2.LINE_AA, tipLength=0.3)
-            self._draw_projected_trajectory(overlay, (kx, ky), (vx, vy), perception.knight.facing)
+            # 3. Draw The Knight
+            if perception.knight.is_detected:
+                x, y, kw, kh = perception.knight.bbox
+                cyan_color = (255, 255, 0)
+                self._draw_corner_brackets(overlay, (x, y, kw, kh), cyan_color, length=15, thickness=2)
+                
+                vx, vy = perception.knight.velocity
+                target_pt = (int(kx + vx * 0.2), int(ky + vy * 0.2))
+                cv2.arrowedLine(overlay, (kx, ky), target_pt, (255, 200, 0), 2, cv2.LINE_AA, tipLength=0.3)
+                self._draw_projected_trajectory(overlay, (kx, ky), (vx, vy), perception.knight.facing)
 
-            k_tag = f"KNIGHT [{perception.knight.action_state} | {perception.knight.facing}]"
-            cv2.putText(overlay, k_tag, (x, max(y - 8, 15)), self.font, 0.5, (255, 255, 255), 1, cv2.LINE_AA)
+                k_tag = f"KNIGHT [{perception.knight.action_state} | {perception.knight.facing}]"
+                cv2.putText(overlay, k_tag, (x, max(y - 8, 15)), self.font, 0.5, (255, 255, 255), 1, cv2.LINE_AA)
 
-        self._draw_telemetry_panel(overlay, perception.hud, fps)
-        self._draw_strategy_panel(overlay, w, strategy_info)
+            self._draw_telemetry_panel(overlay, perception.hud, fps)
+            self._draw_strategy_panel(overlay, w, strategy_info)
 
-        if active_action:
-            self._draw_action_indicator(overlay, w, h, active_action)
+            if active_action:
+                self._draw_action_indicator(overlay, w, h, active_action)
 
-        return overlay
+            return overlay
+        except Exception:
+            return frame
 
     def _draw_corner_brackets(self, img, bbox, color, length=12, thickness=2):
         x, y, w, h = bbox
@@ -136,17 +148,16 @@ class VisualDebugger:
             img[10:10+panel_h, start_x:start_x+panel_w] = sub
 
         cv2.rectangle(img, (start_x, 10), (start_x + panel_w, 10 + panel_h), (255, 0, 200), 1)
-        stage = strategy_info.get("stage", "King's Pass (国王山道)") if strategy_info else "King's Pass"
-        cv2.putText(img, f"STRATEGY: {stage[:25]}", (start_x + 12, 32), self.font, 0.50, (255, 100, 255), 1, cv2.LINE_AA)
+        act = clean_ascii(strategy_info.get("action", "MOVE_RIGHT") if strategy_info else "MOVE_RIGHT")
+        threat = clean_ascii(strategy_info.get("threat_level", "LOW") if strategy_info else "LOW")
+        target = str(strategy_info.get("target_coords", [0, 0]) if strategy_info else [0, 0])
 
-        goal = strategy_info.get("goal", "斩击破碎木门，消灭沿途虫子，前往德特茅斯") if strategy_info else "Analyzing..."
-        tactic = strategy_info.get("tactic", "跳跃劈碎木门，遇怪正面斩击，跳落深坑") if strategy_info else "Standby..."
-
-        cv2.putText(img, f"Goal: {goal[:40]}", (start_x + 12, 58), self.font, 0.40, (230, 230, 230), 1, cv2.LINE_AA)
-        cv2.putText(img, f"Plan: {tactic[:42]}", (start_x + 12, 82), self.font, 0.38, (180, 255, 180), 1, cv2.LINE_AA)
+        cv2.putText(img, f"ACTION: {act} | THREAT: {threat}", (start_x + 12, 32), self.font, 0.50, (255, 100, 255), 1, cv2.LINE_AA)
+        cv2.putText(img, f"TARGET GRID: {target}", (start_x + 12, 58), self.font, 0.45, (230, 230, 230), 1, cv2.LINE_AA)
+        cv2.putText(img, f"REASON: Spatial ReAct Active", (start_x + 12, 82), self.font, 0.40, (180, 255, 180), 1, cv2.LINE_AA)
 
     def _draw_action_indicator(self, img, w, h, action):
-        box_w, box_h = 320, 42
+        box_w, box_h = 360, 42
         bx = (w - box_w) // 2
         by = h - box_h - 20
         sub = img[by:by+box_h, bx:bx+box_w]
@@ -155,5 +166,6 @@ class VisualDebugger:
             cv2.addWeighted(sub, 0.3, black_rect, 0.7, 0, sub)
             img[by:by+box_h, bx:bx+box_w] = sub
 
+        clean_act = clean_ascii(action)[:32]
         cv2.rectangle(img, (bx, by), (bx + box_w, by + box_h), (0, 255, 100), 2)
-        cv2.putText(img, f"ACTION: {action}", (bx + 15, by + 28), self.font, 0.52, (0, 255, 100), 2, cv2.LINE_AA)
+        cv2.putText(img, f"ACTION: {clean_act}", (bx + 10, by + 28), self.font, 0.48, (0, 255, 100), 1, cv2.LINE_AA)

@@ -25,7 +25,7 @@ except ImportError:
 class ScreenCapture:
     """
     Multi-backend high-speed screen capture engine for Hollow Knight.
-    Gracefully handles windowed, borderless, and fullscreen modes.
+    Gracefully handles windowed, borderless, and fullscreen modes with auto-reconnect.
     """
     def __init__(self, window_title: str = "Hollow Knight"):
         self.window_title = window_title
@@ -62,7 +62,6 @@ class ScreenCapture:
             self._update_window_rect()
             return True
         else:
-            # Fallback to entire primary screen
             return False
 
     def _update_window_rect(self):
@@ -88,17 +87,16 @@ class ScreenCapture:
             self.fps = 0.9 * self.fps + 0.1 * (1.0 / dt)
         self.last_frame_time = now
 
-        # Method 1: DXCam (Fastest GPU Duplication)
+        # Method 1: DXCam (GPU Duplication)
         if self.dxcam:
             try:
                 frame = self.dxcam.grab()
                 if frame is not None:
-                    # Convert RGB to BGR
                     return frame[:, :, ::-1]
             except Exception:
                 pass
 
-        # Method 2: MSS
+        # Method 2: MSS (High speed GDI)
         if self.sct:
             try:
                 if self.hwnd and win32gui.IsWindow(self.hwnd):
@@ -112,14 +110,16 @@ class ScreenCapture:
                         sct_img = self.sct.grab(monitor)
                         return np.array(sct_img)[:, :, :3]
 
-                # Fallback to primary monitor
                 primary = self.sct.monitors[1]
                 sct_img = self.sct.grab(primary)
                 return np.array(sct_img)[:, :, :3]
             except Exception:
-                pass
+                try:
+                    self.sct = mss.mss() # Auto-reconnect stale handle
+                except Exception:
+                    pass
 
-        # Method 3: PIL ImageGrab
+        # Method 3: PIL ImageGrab (Universal Fallback)
         if HAS_PIL:
             try:
                 if self.window_rect:

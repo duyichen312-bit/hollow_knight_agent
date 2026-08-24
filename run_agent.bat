@@ -5,8 +5,8 @@ title HK_AI_Launcher
 set "PY_PATH=C:\Users\ShenCongwen\AppData\Local\Programs\Python\Python311\python.exe"
 
 echo ======================================================
-echo   Launching Hollow Knight Vision AI Agent...
-echo   (This terminal will minimize to keep game clean)
+echo   Launching Hollow Knight Vision AI Agent (v2.0.1)...
+echo   (Background process with auto crash dumps enabled)
 echo ======================================================
 
 cd /d "%~dp0"
