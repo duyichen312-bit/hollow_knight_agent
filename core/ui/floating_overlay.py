@@ -1,18 +1,29 @@
 ﻿import time
 import threading
 import tkinter as tk
+import ctypes
 from typing import Optional, Dict, Any, Callable
 from core.brain.text_command_parser import TextCommandParser
 
+user32 = ctypes.windll.user32
+
 class FloatingOverlay:
     """
-    Interactive Topmost Floating HUD Overlay with Summonable Text Command Bar (F10).
-    Allows entering natural language text commands to override LLM strategies in real time.
+    Interactive Topmost Floating HUD Overlay with Safe Input Pausing.
+    Completely pauses local game control while the user is typing natural language commands,
+    preventing keystroke bleeding into the input box.
     """
-    def __init__(self, title_text: str = "Hollow Knight VLM HUD", on_override_cb: Optional[Callable] = None):
+    def __init__(self, title_text: str = "Hollow Knight VLM HUD", 
+                 on_override_cb: Optional[Callable] = None,
+                 on_typing_state_cb: Optional[Callable[[bool], None]] = None,
+                 game_hwnd: Optional[int] = None):
         self.title_text = title_text
         self.on_override_cb = on_override_cb
+        self.on_typing_state_cb = on_typing_state_cb
+        self.game_hwnd = game_hwnd
+        
         self.is_running = False
+        self.is_typing_command = False
         self.root: Optional[tk.Tk] = None
         self._thread: Optional[threading.Thread] = None
 
@@ -30,6 +41,9 @@ class FloatingOverlay:
 
         self._cmd_dialog: Optional[tk.Toplevel] = None
 
+    def set_game_hwnd(self, hwnd: int):
+        self.game_hwnd = hwnd
+
     def start(self):
         self.is_running = True
         self._thread = threading.Thread(target=self._run_gui, daemon=True)
@@ -44,10 +58,6 @@ class FloatingOverlay:
                 pass
 
     def summon_text_command_box(self):
-        """
-        Summons the interactive Spotlight-style text command bar.
-        Can be triggered via F10 global hotkey or HUD button.
-        """
         if self.root and self.is_running:
             self.root.after(0, self._show_command_dialog)
 
@@ -57,11 +67,16 @@ class FloatingOverlay:
             self._cmd_dialog.focus_force()
             return
 
+        # 1. Immediately notify main loop to PAUSE all controller keystrokes!
+        self.is_typing_command = True
+        if self.on_typing_state_cb:
+            self.on_typing_state_cb(True)
+
         dialog = tk.Toplevel(self.root)
         dialog.title("输入战术文字指令")
         sw = dialog.winfo_screenwidth()
         sh = dialog.winfo_screenheight()
-        w, h = 580, 140
+        w, h = 600, 145
         x = (sw - w) // 2
         y = (sh - h) // 3
         dialog.geometry(f"{w}x{h}+{x}+{y}")
@@ -72,7 +87,7 @@ class FloatingOverlay:
         box = tk.Frame(dialog, bg="#21252b", highlightbackground="#61afef", highlightthickness=2, padx=14, pady=12)
         box.pack(fill="both", expand=True)
 
-        lbl = tk.Label(box, text="💬 请输入战术文字指令 (按 [Enter] 执行, [Esc] 取消):", bg="#21252b", fg="#e5c07b", font=("Microsoft YaHei UI", 10, "bold"))
+        lbl = tk.Label(box, text="💬 请输入战术文字指令 [此时游戏控制已暂停，请放心打字]:", bg="#21252b", fg="#e5c07b", font=("Microsoft YaHei UI", 10, "bold"))
         lbl.pack(anchor="w", pady=(0, 6))
 
         entry_frame = tk.Frame(box, bg="#18181f", padx=6, pady=4)
@@ -80,25 +95,49 @@ class FloatingOverlay:
 
         cmd_entry = tk.Entry(entry_frame, bg="#18181f", fg="#ffffff", insertbackground="#ffffff", relief="flat", font=("Microsoft YaHei UI", 11))
         cmd_entry.pack(fill="x", expand=True)
-        cmd_entry.focus_force()
 
-        hint_lbl = tk.Label(box, text="💡 范例: '向左走10秒探索宝箱' / '连续大跳爬上右上石台' / '就地挥刀破门'", bg="#21252b", fg="#5c6370", font=("Microsoft YaHei UI", 8))
+        hint_lbl = tk.Label(box, text="💡 按 [Enter] 提交并恢复控制 | 按 [Esc] 取消 | 范例: '向左走10秒探索宝箱' / '连续大跳爬上右上台阶'", bg="#21252b", fg="#5c6370", font=("Microsoft YaHei UI", 8))
         hint_lbl.pack(anchor="w")
+
+        def _cleanup_and_refocus(submitted_text: Optional[str] = None):
+            self.is_typing_command = False
+            try:
+                dialog.destroy()
+            except Exception:
+                pass
+            self._cmd_dialog = None
+
+            # Notify main loop to resume controller!
+            if self.on_typing_state_cb:
+                self.on_typing_state_cb(False)
+
+            # Refocus Hollow Knight game window
+            if self.game_hwnd and user32.IsWindow(self.game_hwnd):
+                try:
+                    user32.SetForegroundWindow(self.game_hwnd)
+                    user32.SwitchToThisWindow(self.game_hwnd, True)
+                except Exception:
+                    pass
+
+            if submitted_text and self.on_override_cb:
+                parsed = TextCommandParser.parse_command(submitted_text)
+                if parsed:
+                    self.on_override_cb("CUSTOM_TEXT_PLAN", parsed)
 
         def _on_submit(event=None):
             text = cmd_entry.get().strip()
-            if text:
-                parsed = TextCommandParser.parse_command(text)
-                if parsed and self.on_override_cb:
-                    self.on_override_cb("CUSTOM_TEXT_PLAN", parsed)
-            dialog.destroy()
+            _cleanup_and_refocus(text if text else None)
 
         def _on_cancel(event=None):
-            dialog.destroy()
+            _cleanup_and_refocus(None)
 
         cmd_entry.bind("<Return>", _on_submit)
         cmd_entry.bind("<Escape>", _on_cancel)
         dialog.bind("<Escape>", _on_cancel)
+        
+        # Ensure clean initial state & grab focus
+        cmd_entry.delete(0, "end")
+        cmd_entry.focus_force()
         self._cmd_dialog = dialog
 
     def update_vlm_strategy(self, strategy: Dict[str, Any], provider_name: str = "", is_human_override: bool = False):
@@ -113,7 +152,10 @@ class FloatingOverlay:
             self.provider_info = provider_name
 
     def update_control_status(self, is_paused: bool, hotkey: str = "F9", fps: float = 60.0):
-        if is_paused:
+        if self.is_typing_command:
+            self.status_text = "💬 正在输入文字指令 (本地控制已安全挂起)"
+            self.status_color = "#61afef" # Blue
+        elif is_paused:
             self.status_text = f"⏸️ 人类手动接管中 (按 [{hotkey}] 恢复AI)"
             self.status_color = "#e5c07b"
         elif self.is_override_active:
@@ -133,7 +175,6 @@ class FloatingOverlay:
         self.root.title(self.title_text)
         
         try:
-            import ctypes
             ctypes.windll.shcore.SetProcessDpiAwareness(1)
         except Exception:
             pass
@@ -149,7 +190,6 @@ class FloatingOverlay:
         self.root.attributes("-alpha", 0.93)
         self.root.configure(bg="#18181f")
 
-        # Win32 Focus Protection
         try:
             import win32gui
             import win32con

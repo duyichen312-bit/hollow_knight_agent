@@ -94,10 +94,19 @@ def main():
     hotkey_mgr = GlobalHotkeyManager(controller=controller, hotkey_name=hotkey_name)
     hotkey_mgr.start()
 
-    # 3. Floating Overlay Forward Declaration
+    # 3. Typing State Tracking (PAUSES all keystrokes during text input)
+    is_typing_command = False
+
+    def on_typing_state_change(typing: bool):
+        nonlocal is_typing_command
+        is_typing_command = typing
+        if typing:
+            controller.release_all() # Instantly release all keys so no keystroke bleeding into textbox!
+
+    # 4. Floating Overlay Forward Declaration
     overlay = None
 
-    # 4. Human Strategic Override System with F10 Hotkey
+    # 5. Human Strategic Override System with F10 Hotkey
     def on_f10_press():
         if overlay:
             overlay.summon_text_command_box()
@@ -105,7 +114,7 @@ def main():
     human_override = HumanDirectiveOverride(on_f10_callback=on_f10_press)
     human_override.start_hotkey_listener()
 
-    # 5. Floating HUD Callback for Buttons & Text Input
+    # 6. Floating HUD Callback for Buttons & Text Input
     def on_overlay_override_click(action_type: str, custom_data: Optional[dict] = None):
         if action_type == "CUSTOM_TEXT_PLAN" and custom_data:
             human_override.inject_directive(
@@ -123,12 +132,16 @@ def main():
         elif action_type == "FORCE_RIGHT":
             human_override.inject_directive("强制向右破门主线推进", "RIGHT", "HORIZONTAL_EXPLORE", "NONE", "向右破门推进，消灭爬虫与障碍", 15.0)
         elif action_type == "DROP_DOWN":
-            human_override.inject_directive("强制向下跃下深坑探秘", "RIGHT", "DROP_DOWN", "DROP_DOWN", "走到悬崖边缘跳下深坑进入下层", 15.0)
+            human_override.inject_directive("向下跃下深坑探秘", "RIGHT", "DROP_DOWN", "DROP_DOWN", "走到悬崖边缘跳下深坑进入下层", 15.0)
         elif action_type == "CLEAR_OVERRIDE":
             human_override.clear_override()
 
     if enable_overlay:
-        overlay = FloatingOverlay(on_override_cb=on_overlay_override_click)
+        overlay = FloatingOverlay(
+            on_override_cb=on_overlay_override_click,
+            on_typing_state_cb=on_typing_state_change,
+            game_hwnd=game_hwnd
+        )
         overlay.start()
 
     vlm_brain = VLMPlanner(config=config.get("brain", {}).get("llm", {}))
@@ -175,9 +188,14 @@ def main():
                 overlay.update_vlm_strategy(effective_strategy, provider_name=vlm_brain.model_name, is_human_override=is_override)
                 overlay.update_control_status(is_paused=hotkey_mgr.is_paused, hotkey=hotkey_name, fps=current_fps)
 
-            # Execute actions based on Hotkey state (AI vs Human Manual Control)
-            if hotkey_mgr.is_paused:
+            # Execution state branch:
+            # 1. Typing text command -> COMPLETE PAUSE (Zero keystrokes output!)
+            if is_typing_command:
+                active_action = "💬 TYPING_TEXT_COMMAND (Game Keystrokes Completely Paused)"
+            # 2. Human took over via F9
+            elif hotkey_mgr.is_paused:
                 active_action = f"⏸️ MANUAL_HUMAN_CONTROL (Press [{hotkey_name}] to Resume AI)"
+            # 3. Autonomous AI with Reflex & Override
             else:
                 active_action = state_machine.step(perception, effective_strategy)
 

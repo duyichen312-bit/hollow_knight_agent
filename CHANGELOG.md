@@ -5,23 +5,20 @@ The project adheres to [Semantic Versioning](https://semver.org/).
 
 ---
 
-## [v1.5.0] - 2026-08-24 (F10 Summonable Natural Language Command Bar)
+## [v1.5.1] - 2026-08-24 (Safe Typing Suspension & Input Conflict Fix)
 
-### 🌟 New Features & Enhancements:
-- **F10 快捷召唤自然语言战术文字指令台 (Command Bar)**:
-  - 游戏中随时按下 **`F10`** 键（或点击悬浮窗 `💬 输入文字指令` 按钮），屏幕中央会自动呼出一个现代 Spotlight 风格的居中文字指令输入框。
-  - **自然语言自由输入**:
-    - 支持任意口语化战术描述，例如：
-      - `"向左回溯探索搜刮金币 10秒"`
-      - `"连续大跳攀登右上阶梯平台"`
-      - `"向右破门推进并消灭爬虫"`
-      - `"跳下深坑探秘"`
-    - 按 `Enter` 提交执行，按 `Esc` 随时取消关闭。
-  - **智能战术语义解析器 (`TextCommandParser`)**:
-    - 本地毫秒级解析方向、时间长度（如 10s、20秒）、攀登/跳坑/破门模式，并强令本地小脑立即优先执行！
-  - **自动执行与自主归还 (Auto Execution & Handover)**:
-    - 指令执行期间，悬浮窗高亮显示指令内容与剩余时间；
-    - 执行结束后触发提示音，**自动将控制权平滑交还给大模型自主决策**！
+### 🌟 Bug Fixes & Usability Improvements:
+- **彻底解决呼出文字框时游戏按键污染输入框问题 (Safe Typing Suspension)**:
+  - 修复了按 `F10` 呼出文字指令输入框时，本地控制器仍在循环发送按键（如 `x`, `z`, 方向键）导致输入框被游戏控制字符污染的严重 BUG；
+  - **解决方案**:
+    1. 按下 `F10` 呼出窗口的瞬间，系统**立即自动释放所有已按下的游戏按键 (`controller.release_all()`)**；
+    2. 主循环在打字期间进入**安全挂起态（Zero Keystrokes Output）**，绝不输出任何虚拟按键；
+    3. 待您按下 `Enter` 提交指令（或按 `Esc` 取消）后，窗口自动关闭，**焦点无缝切回游戏画面，并立即恢复执行全新指令**！
+
+---
+
+## [v1.5.0] - 2026-08-24 (F10 Summonable Natural Language Command Bar)
+- F10 快捷召唤自然语言文字战术指令台（自动解析与平滑交还）。
 
 ---
 
