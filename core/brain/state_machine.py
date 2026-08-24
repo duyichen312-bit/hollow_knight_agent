@@ -6,11 +6,10 @@ from core.controller.gamepad import GameController
 class ReflexStateMachine:
     """
     Grandmaster Depth-First Search (DFS) 2D Cerebellum AI with:
-    1. Long-Distance Dead-End Escape (6.0s 纯地面长程大撤离 + 10.0s 深度立体搜索，彻底脱离死胡同)
-    2. Long-Term Direction Reversal Lock (反向探索长效锁定 45 秒，严禁折返撞死墙)
-    3. Wide-Radius Wall Blacklist (600px 超宽防折返禁区)
-    4. Rhythmic Glance-Back Reconnaissance (走两步往回看一眼)
-    5. Upward Platform Priority & Combat Reflexes
+    1. Absolute Human Directive Preemption (人类指令最高优先级强行抢占)
+    2. Long-Distance Dead-End Escape & Sustained Backtracking
+    3. Rhythmic Glance-Back Reconnaissance (走两步往回看一眼)
+    4. Upward Platform Priority & Combat Reflexes
     """
     def __init__(self, controller: GameController, config: dict = None):
         self.controller = controller
@@ -52,7 +51,7 @@ class ReflexStateMachine:
         self.dead_end_cooldowns = [w for w in self.dead_end_cooldowns if w[2] > now]
 
         # =========================================================================
-        # 1. EMERGENCY DAMAGE EVASION
+        # LEVEL 1: EMERGENCY DAMAGE EVASION
         # =========================================================================
         if hud.health < self.last_known_health:
             self.last_known_health = hud.health
@@ -62,7 +61,56 @@ class ReflexStateMachine:
         self.last_known_health = hud.health
 
         # =========================================================================
-        # 2. COMBAT REFLEX: Attack Monsters & Aerial Pogo
+        # LEVEL 1.5: ABSOLUTE HUMAN STRATEGIC OVERRIDE (人类指令最高优先级强行抢占)
+        # =========================================================================
+        is_human_override = (strategy and strategy.get("exploration_phase") == "HUMAN_OVERRIDE_ACTIVE")
+        if is_human_override:
+            # Cancel any active dead-end backtracking & reset stuck state
+            self.is_backtracking = False
+            self.stuck_counter = 0
+            self.is_glancing_back = False
+            
+            override_dir = str(strategy.get("direction", "left")).lower()
+            if override_dir not in ["left", "right"]:
+                override_dir = "left"
+            override_mode = strategy.get("navigation_mode", "HORIZONTAL_EXPLORE")
+            override_vert = strategy.get("vertical_action", "NONE")
+            self.locked_explore_dir = override_dir
+
+            # 1. Immediate direction change
+            self.controller.set_movement(override_dir)
+
+            # 2. Handle forced climbing or drops
+            if override_mode == "UPWARD_CLIMB" or override_vert == "JUMP_CLIMB_UP":
+                if now - self.last_jump_time > 0.70:
+                    self.controller.tap_jump(0.38) # High Jump
+                    self.last_jump_time = now
+                    return f"HUMAN_OVERRIDE_CLIMB_{override_dir.upper()}"
+
+            # 3. Combat or mineral clearing while obeying human direction
+            if enemies:
+                target = enemies[0]
+                ex, ey = target.center
+                dx = ex - kx
+                dy = ey - ky
+                target_dir = "right" if dx >= 0 else "left"
+                if abs(dx) <= 170 and abs(dy) <= 85:
+                    if now - self.last_attack_time > 0.20:
+                        self.controller.combo_slashes(target_dir, count=2)
+                        self.last_attack_time = now
+                        return f"HUMAN_COMBAT_{target_dir.upper()}"
+
+            # Preemptive swing
+            if now - self.last_attack_time > 1.2:
+                self.controller.set_movement(override_dir)
+                self.controller.tap_attack(0.08)
+                self.last_attack_time = now
+                return f"HUMAN_SLASH_{override_dir.upper()}"
+
+            return f"HUMAN_FORCE_{override_dir.upper()}"
+
+        # =========================================================================
+        # LEVEL 2: COMBAT REFLEX: Attack Monsters & Aerial Pogo
         # =========================================================================
         if enemies:
             self.is_glancing_back = False
@@ -95,7 +143,7 @@ class ReflexStateMachine:
                 return f"APPROACH_MONSTER_{target_dir.upper()}"
 
         # =========================================================================
-        # 3. GEO GATHERING & MINING
+        # LEVEL 3: GEO GATHERING & MINING
         # =========================================================================
         if geo_items and not enemies:
             self.is_glancing_back = False
@@ -119,7 +167,7 @@ class ReflexStateMachine:
                 return f"COLLECT_GEO_{geo_dir.upper()}"
 
         # =========================================================================
-        # 4. LONG-DISTANCE DEAD-END ESCAPE & SUSTAINED BACKTRACKING
+        # LEVEL 4: LONG-DISTANCE DEAD-END ESCAPE & SUSTAINED BACKTRACKING
         # =========================================================================
         if self.is_backtracking:
             self.is_glancing_back = False
@@ -133,13 +181,13 @@ class ReflexStateMachine:
             # Phase 2: Upward climbing & deep branch search (10.0 seconds / Total 16.0s!)
             elif now < self.backtrack_until:
                 if now - self.last_jump_time > 0.80:
-                    self.controller.tap_jump(0.38) # High Jump for platform climb
+                    self.controller.tap_jump(0.38)
                     self.last_jump_time = now
                 self.controller.set_movement(self.backtrack_dir)
                 remain = round(self.backtrack_until - now, 1)
                 return f"DEEP_BRANCH_CLIMB_{self.backtrack_dir.upper()}[{remain}s]"
             
-            # Phase Complete -> Permanently switch locked exploration direction!
+            # Phase Complete
             else:
                 self.is_backtracking = False
                 self.locked_explore_dir = self.backtrack_dir
@@ -191,11 +239,11 @@ class ReflexStateMachine:
                 opposite_dir = "left" if nav_dir == "right" else "right"
                 print(f"\n[AI 深度脱困系统] >>> 在 ({kx}, {ky}) 识别死胡同！启动 6 秒长程大撤离 + 10 秒深度立体搜索（总计 16 秒）！<<<")
                 self.is_backtracking = True
-                self.retreat_phase_until = now + 6.0  # 6.0s pure ground escape
-                self.backtrack_until = now + 16.0     # 16.0s total deep branch search
+                self.retreat_phase_until = now + 6.0
+                self.backtrack_until = now + 16.0
                 self.backtrack_dir = opposite_dir
-                self.locked_explore_dir = opposite_dir # Lock direction to opposite
-                self.dead_end_cooldowns.append((kx, nav_dir, now + 45.0)) # 600px blacklist for 45s!
+                self.locked_explore_dir = opposite_dir
+                self.dead_end_cooldowns.append((kx, nav_dir, now + 45.0))
                 self.stuck_counter = 0
                 self.slash_attempts_on_wall = 0
                 
