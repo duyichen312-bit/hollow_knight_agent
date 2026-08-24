@@ -5,11 +5,13 @@ from core.controller.gamepad import GameController
 
 class ReflexStateMachine:
     """
-    Grandmaster Depth-First Search (DFS) 2D Cerebellum AI with:
-    1. Absolute Human Directive Preemption (人类指令最高优先级强行抢占)
-    2. Long-Distance Dead-End Escape & Sustained Backtracking
-    3. Rhythmic Glance-Back Reconnaissance (走两步往回看一眼)
-    4. Upward Platform Priority & Combat Reflexes
+    Grandmaster Spatial ReAct 2D Cerebellum AI.
+    Executes fine-grained VLM spatial ReAct actions with 60Hz local reflex protection:
+    1. Level 1: Emergency Damage Evasion
+    2. Level 1.5: Absolute Human Directive Preemption
+    3. Level 2: Combat Reflexes & Aerial Pogo
+    4. Level 3: Geo Mining & Collection
+    5. Level 4: Fine-grained Spatial ReAct Action Execution (JUMP_DASH / CLIMB / DROP / SLASH)
     """
     def __init__(self, controller: GameController, config: dict = None):
         self.controller = controller
@@ -65,7 +67,6 @@ class ReflexStateMachine:
         # =========================================================================
         is_human_override = (strategy and strategy.get("exploration_phase") == "HUMAN_OVERRIDE_ACTIVE")
         if is_human_override:
-            # Cancel any active dead-end backtracking & reset stuck state
             self.is_backtracking = False
             self.stuck_counter = 0
             self.is_glancing_back = False
@@ -77,17 +78,14 @@ class ReflexStateMachine:
             override_vert = strategy.get("vertical_action", "NONE")
             self.locked_explore_dir = override_dir
 
-            # 1. Immediate direction change
             self.controller.set_movement(override_dir)
 
-            # 2. Handle forced climbing or drops
             if override_mode == "UPWARD_CLIMB" or override_vert == "JUMP_CLIMB_UP":
                 if now - self.last_jump_time > 0.70:
-                    self.controller.tap_jump(0.38) # High Jump
+                    self.controller.tap_jump(0.38)
                     self.last_jump_time = now
                     return f"HUMAN_OVERRIDE_CLIMB_{override_dir.upper()}"
 
-            # 3. Combat or mineral clearing while obeying human direction
             if enemies:
                 target = enemies[0]
                 ex, ey = target.center
@@ -100,7 +98,6 @@ class ReflexStateMachine:
                         self.last_attack_time = now
                         return f"HUMAN_COMBAT_{target_dir.upper()}"
 
-            # Preemptive swing
             if now - self.last_attack_time > 1.2:
                 self.controller.set_movement(override_dir)
                 self.controller.tap_attack(0.08)
@@ -167,123 +164,83 @@ class ReflexStateMachine:
                 return f"COLLECT_GEO_{geo_dir.upper()}"
 
         # =========================================================================
-        # LEVEL 4: LONG-DISTANCE DEAD-END ESCAPE & SUSTAINED BACKTRACKING
+        # LEVEL 4: SPATIAL ReAct ACTION EXECUTION (空间 ReAct 精细动作执行)
         # =========================================================================
-        if self.is_backtracking:
-            self.is_glancing_back = False
-            
-            # Phase 1: Pure ground retreat run away from dead end (6.0 seconds!)
-            if now < self.retreat_phase_until:
-                self.controller.set_movement(self.backtrack_dir)
-                remain = round(self.retreat_phase_until - now, 1)
-                return f"LONG_ESCAPE_RUN_{self.backtrack_dir.upper()}[{remain}s]"
-            
-            # Phase 2: Upward climbing & deep branch search (10.0 seconds / Total 16.0s!)
-            elif now < self.backtrack_until:
-                if now - self.last_jump_time > 0.80:
-                    self.controller.tap_jump(0.38)
-                    self.last_jump_time = now
-                self.controller.set_movement(self.backtrack_dir)
-                remain = round(self.backtrack_until - now, 1)
-                return f"DEEP_BRANCH_CLIMB_{self.backtrack_dir.upper()}[{remain}s]"
-            
-            # Phase Complete
-            else:
-                self.is_backtracking = False
-                self.locked_explore_dir = self.backtrack_dir
-                print(f"[AI 导航] 彻底脱离死胡同！锁定向 {self.locked_explore_dir.upper()} 方向探索新主干道！")
+        react_action = strategy.get("action", "MOVE_RIGHT") if strategy else "MOVE_RIGHT"
+        duration_sec = float(strategy.get("duration_ms", 400)) / 1000.0 if strategy else 0.40
+        duration_sec = max(0.15, min(1.5, duration_sec))
 
-        # Determine macro desired direction
-        nav_mode = "HORIZONTAL_EXPLORE"
-        nav_dir = self.locked_explore_dir
-        vert_action = "NONE"
-
-        if strategy:
-            nav_mode = strategy.get("navigation_mode", "HORIZONTAL_EXPLORE")
-            s_dir = str(strategy.get("direction", "")).lower()
-            if s_dir in ["left", "right"]:
-                nav_dir = s_dir
-            vert_action = strategy.get("vertical_action", "NONE")
-
-        # Check wide-radius dead end blacklist (600px radius!)
-        for dead_x, dead_d, _ in self.dead_end_cooldowns:
-            if dead_d == nav_dir and abs(kx - dead_x) < 600:
-                nav_dir = "left" if nav_dir == "right" else "right"
-                self.locked_explore_dir = nav_dir
-                break
-
-        # High Sensitivity Blockage Tracking
-        if abs(kx - self.last_kx) < 3 and knight.is_detected:
-            self.stuck_counter += 1
-        else:
-            self.stuck_counter = 0
-            self.slash_attempts_on_wall = 0
-        self.last_kx = kx
-        self.last_ky = ky
-
-        # If blocked by obstacle:
-        if self.stuck_counter > 2:
-            self.is_glancing_back = False
-            # 1. Test break barrier: 2 test hits
-            if self.slash_attempts_on_wall < 2:
-                if now - self.last_jump_time > 0.35:
-                    self.controller.jump_and_slash(nav_dir, repeats=2)
-                    self.last_jump_time = now
-                    self.last_attack_time = now
-                    self.slash_attempts_on_wall += 1
-                    self.stuck_counter = 0
-                    return f"TEST_BARRIER_{self.slash_attempts_on_wall}/2"
-            
-            # 2. Slashed 2 times, still blocked -> TRIGGER EXTENDED ESCAPE & LONG-TERM REVERSAL
-            else:
-                opposite_dir = "left" if nav_dir == "right" else "right"
-                print(f"\n[AI 深度脱困系统] >>> 在 ({kx}, {ky}) 识别死胡同！启动 6 秒长程大撤离 + 10 秒深度立体搜索（总计 16 秒）！<<<")
-                self.is_backtracking = True
-                self.retreat_phase_until = now + 6.0
-                self.backtrack_until = now + 16.0
-                self.backtrack_dir = opposite_dir
-                self.locked_explore_dir = opposite_dir
-                self.dead_end_cooldowns.append((kx, nav_dir, now + 45.0))
-                self.stuck_counter = 0
-                self.slash_attempts_on_wall = 0
-                
-                self.controller.set_movement(opposite_dir)
-                return f"TRIGGER_LONG_ESCAPE_{opposite_dir.upper()}"
-
-        # 5. DFS RECONNAISSANCE: "走两步往回看" (Only during normal advance)
-        if not self.is_backtracking and (hud.health == self.last_known_health):
-            if self.is_glancing_back:
-                if now < self.glance_until:
-                    rear_dir = "left" if nav_dir == "right" else "right"
-                    self.controller.set_movement(rear_dir)
-                    return f"DFS_GLANCE_BACK_{rear_dir.upper()}"
-                else:
-                    self.is_glancing_back = False
-                    self.last_glance_time = now
-            elif now - self.last_glance_time > 2.0:
-                self.is_glancing_back = True
-                self.glance_until = now + 0.18
-                rear_dir = "left" if nav_dir == "right" else "right"
-                self.controller.set_movement(rear_dir)
-                return f"DFS_CHECK_BEHIND_{rear_dir.upper()}"
-
-        # 6. Upward Platform Priority
-        if nav_mode == "UPWARD_CLIMB" or vert_action == "JUMP_CLIMB_UP":
-            if now - self.last_jump_time > 0.85:
-                self.climb_step += 1
-                climb_dir = nav_dir if (self.climb_step % 4 != 0) else ("left" if nav_dir == "right" else "right")
-                self.controller.set_movement(climb_dir)
-                self.controller.tap_jump(0.38)
+        # 1. JUMP + DASH (Across wide gaps / acid pits)
+        if react_action in ["JUMP_RIGHT_DASH", "JUMP_LEFT_DASH"]:
+            d_dir = "right" if "RIGHT" in react_action else "left"
+            self.controller.set_movement(d_dir)
+            if now - self.last_jump_time > 0.70:
+                self.controller.tap_jump(0.35)
                 self.last_jump_time = now
-                return f"PRIORITY_UPWARD_JUMP_{climb_dir.upper()}"
+                time.sleep(0.18)
+                self.controller.tap_dash(0.08)
+                return f"REACT_{react_action}"
 
-        # Preemptive exploratory swing
-        if now - self.last_attack_time > 1.4:
+        # 2. UPWARD PLATFORM CLIMB
+        elif react_action == "JUMP_CLIMB_UP":
+            self.controller.set_movement(self.locked_explore_dir)
+            if now - self.last_jump_time > 0.75:
+                self.controller.tap_jump(0.40) # High jump
+                self.last_jump_time = now
+                return "REACT_JUMP_CLIMB_UP"
+
+        # 3. DIAGONAL HIGH JUMP
+        elif react_action in ["JUMP_RIGHT", "JUMP_LEFT"]:
+            j_dir = "right" if "RIGHT" in react_action else "left"
+            self.controller.set_movement(j_dir)
+            if now - self.last_jump_time > 0.70:
+                self.controller.tap_jump(duration_sec)
+                self.last_jump_time = now
+                return f"REACT_{react_action}"
+
+        # 4. FORWARD SLASH BREAK BARRIER
+        elif react_action == "SLASH_FORWARD":
+            self.controller.jump_and_slash(self.locked_explore_dir, repeats=2)
+            self.last_attack_time = now
+            return "REACT_SLASH_BARRIER"
+
+        # 5. FOCUS HEAL IN SAFE CORNER
+        elif react_action == "FOCUS_HEAL" and hud.health < 5 and hud.soul_ratio > 0.33:
+            self.controller.focus_heal(1.5)
+            return "REACT_FOCUS_HEAL"
+
+        # 6. RETREAT / BACKTRACK
+        elif react_action == "RETREAT_BACKTRACK":
+            opp_dir = "left" if self.locked_explore_dir == "right" else "right"
+            self.locked_explore_dir = opp_dir
+            self.controller.set_movement(opp_dir)
+            return f"REACT_RETREAT_{opp_dir.upper()}"
+
+        # 7. Standard Directional Run with DFS Glance
+        nav_dir = "right" if "RIGHT" in react_action else ("left" if "LEFT" in react_action else self.locked_explore_dir)
+        self.locked_explore_dir = nav_dir
+
+        # DFS Glance-Back (Once every 2.5s)
+        if now - self.last_glance_time > 2.5:
+            self.is_glancing_back = True
+            self.glance_until = now + 0.18
+            self.last_glance_time = now
+            rear_dir = "left" if nav_dir == "right" else "right"
+            self.controller.set_movement(rear_dir)
+            return f"DFS_GLANCE_{rear_dir.upper()}"
+
+        if self.is_glancing_back and now < self.glance_until:
+            rear_dir = "left" if nav_dir == "right" else "right"
+            self.controller.set_movement(rear_dir)
+            return f"DFS_LOOK_{rear_dir.upper()}"
+        self.is_glancing_back = False
+
+        # Exploratory sword slash while advancing
+        if now - self.last_attack_time > 1.3:
             self.controller.set_movement(nav_dir)
             self.controller.tap_attack(0.08)
             self.last_attack_time = now
-            return f"EXPLORE_SLASH_{nav_dir.upper()}"
+            return f"REACT_EXPLORE_SLASH_{nav_dir.upper()}"
 
-        # Controlled Steady Movement
         self.controller.set_movement(nav_dir)
-        return f"STEADY_DFS_RUN_{nav_dir.upper()}"
+        return f"REACT_MOVE_{nav_dir.upper()}"

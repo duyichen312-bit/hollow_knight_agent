@@ -9,9 +9,7 @@ user32 = ctypes.windll.user32
 
 class FloatingOverlay:
     """
-    Interactive Topmost Floating HUD Overlay with Safe Input Pausing.
-    Completely pauses local game control while the user is typing natural language commands,
-    preventing keystroke bleeding into the input box.
+    Spatial ReAct Topmost Floating HUD Overlay with 0-100 Grid Feedback and Action Display.
     """
     def __init__(self, title_text: str = "Hollow Knight VLM HUD", 
                  on_override_cb: Optional[Callable] = None,
@@ -27,15 +25,16 @@ class FloatingOverlay:
         self.root: Optional[tk.Tk] = None
         self._thread: Optional[threading.Thread] = None
 
-        # Live State Data
+        # Live State Data (Spatial ReAct)
         self.status_text = "🟢 AI 自动运行中 (按 [F9] 随时接管)"
         self.status_color = "#98c379"
         self.provider_info = "Gemini 3.6 Flash"
-        self.location_info = "King\'s Pass (国王山道起始区)"
-        self.phase_info = "PHASE_1_BARRIER"
-        self.nav_mode_info = "HORIZONTAL_AND_UPWARD_CLIMB"
-        self.macro_goal_info = "向前探索并斩碎木门，跃下深坑进入下层"
-        self.tactic_info = "贴近木门起跳连斩破门；落入深坑后搜刮金币与矿脉；沿右上平台连续大跳向上攀爬登顶！"
+        self.scene_analysis_info = "小骑士位于初始区域 (30, 60)，右侧有石阶平台与木门"
+        self.action_info = "MOVE_RIGHT"
+        self.target_coords_info = "[60, 60]"
+        self.threat_info = "LOW"
+        self.duration_info = "600ms"
+        self.reasoning_info = "向前稳步探索并清理沿途障碍"
         self.fps_info = "60.0 FPS"
         self.is_override_active = False
 
@@ -67,7 +66,6 @@ class FloatingOverlay:
             self._cmd_dialog.focus_force()
             return
 
-        # 1. Immediately notify main loop to PAUSE all controller keystrokes!
         self.is_typing_command = True
         if self.on_typing_state_cb:
             self.on_typing_state_cb(True)
@@ -76,7 +74,7 @@ class FloatingOverlay:
         dialog.title("输入战术文字指令")
         sw = dialog.winfo_screenwidth()
         sh = dialog.winfo_screenheight()
-        w, h = 600, 145
+        w, h = 620, 145
         x = (sw - w) // 2
         y = (sh - h) // 3
         dialog.geometry(f"{w}x{h}+{x}+{y}")
@@ -96,7 +94,7 @@ class FloatingOverlay:
         cmd_entry = tk.Entry(entry_frame, bg="#18181f", fg="#ffffff", insertbackground="#ffffff", relief="flat", font=("Microsoft YaHei UI", 11))
         cmd_entry.pack(fill="x", expand=True)
 
-        hint_lbl = tk.Label(box, text="💡 按 [Enter] 提交并恢复控制 | 按 [Esc] 取消 | 范例: '向左走10秒探索宝箱' / '连续大跳爬上右上台阶'", bg="#21252b", fg="#5c6370", font=("Microsoft YaHei UI", 8))
+        hint_lbl = tk.Label(box, text="💡 按 [Enter] 提交并恢复控制 | 按 [Esc] 取消 | 范例: '跳跃冲刺过断崖' / '向上大跳爬石台 10s'", bg="#21252b", fg="#5c6370", font=("Microsoft YaHei UI", 8))
         hint_lbl.pack(anchor="w")
 
         def _cleanup_and_refocus(submitted_text: Optional[str] = None):
@@ -107,11 +105,9 @@ class FloatingOverlay:
                 pass
             self._cmd_dialog = None
 
-            # Notify main loop to resume controller!
             if self.on_typing_state_cb:
                 self.on_typing_state_cb(False)
 
-            # Refocus Hollow Knight game window
             if self.game_hwnd and user32.IsWindow(self.game_hwnd):
                 try:
                     user32.SetForegroundWindow(self.game_hwnd)
@@ -135,7 +131,6 @@ class FloatingOverlay:
         cmd_entry.bind("<Escape>", _on_cancel)
         dialog.bind("<Escape>", _on_cancel)
         
-        # Ensure clean initial state & grab focus
         cmd_entry.delete(0, "end")
         cmd_entry.focus_force()
         self._cmd_dialog = dialog
@@ -143,18 +138,19 @@ class FloatingOverlay:
     def update_vlm_strategy(self, strategy: Dict[str, Any], provider_name: str = "", is_human_override: bool = False):
         self.is_override_active = is_human_override
         if strategy:
-            self.location_info = str(strategy.get("current_location", self.location_info))
-            self.phase_info = str(strategy.get("exploration_phase", self.phase_info))
-            self.nav_mode_info = str(strategy.get("navigation_mode", self.nav_mode_info))
-            self.macro_goal_info = str(strategy.get("macro_goal", self.macro_goal_info))
-            self.tactic_info = str(strategy.get("tactic", self.tactic_info))
+            self.scene_analysis_info = str(strategy.get("scene_analysis", strategy.get("current_location", self.scene_analysis_info)))
+            self.action_info = str(strategy.get("action", self.action_info))
+            self.target_coords_info = str(strategy.get("target_coords", self.target_coords_info))
+            self.threat_info = str(strategy.get("threat_level", "LOW"))
+            self.duration_info = f"{strategy.get('duration_ms', 400)}ms"
+            self.reasoning_info = str(strategy.get("reasoning", strategy.get("macro_goal", self.reasoning_info)))
         if provider_name:
             self.provider_info = provider_name
 
     def update_control_status(self, is_paused: bool, hotkey: str = "F9", fps: float = 60.0):
         if self.is_typing_command:
             self.status_text = "💬 正在输入文字指令 (本地控制已安全挂起)"
-            self.status_color = "#61afef" # Blue
+            self.status_color = "#61afef"
         elif is_paused:
             self.status_text = f"⏸️ 人类手动接管中 (按 [{hotkey}] 恢复AI)"
             self.status_color = "#e5c07b"
@@ -162,7 +158,7 @@ class FloatingOverlay:
             self.status_text = f"🚨 人工指令优先执行中 (按 [F10] 输入新指令)"
             self.status_color = "#e06c75"
         else:
-            self.status_text = f"🟢 AI 自动运行中 (按 [{hotkey}] 暂停 | [F10] 文字指令)"
+            self.status_text = f"🟢 AI 空间ReAct决策中 (按 [{hotkey}] 暂停 | [F10] 文字指令)"
             self.status_color = "#98c379"
         self.fps_info = f"{fps:.1f} FPS"
 
@@ -179,15 +175,15 @@ class FloatingOverlay:
         except Exception:
             pass
 
-        # Window Geometry: 760x225
+        # Window Geometry: 780x235
         sw = self.root.winfo_screenwidth()
-        w, h = 760, 225
+        w, h = 780, 235
         x = (sw - w) // 2
         y = 15
         self.root.geometry(f"{w}x{h}+{x}+{y}")
         self.root.overrideredirect(True)
         self.root.attributes("-topmost", True)
-        self.root.attributes("-alpha", 0.93)
+        self.root.attributes("-alpha", 0.94)
         self.root.configure(bg="#18181f")
 
         try:
@@ -217,7 +213,7 @@ class FloatingOverlay:
         container.bind("<Button-1>", _start_move)
         container.bind("<B1-Motion>", _on_move)
 
-        # Row 1: Header Status
+        # Row 1: Header Status & Model
         row1 = tk.Frame(container, bg="#1e1e24")
         row1.pack(fill="x", padx=12, pady=(6, 2))
         row1.bind("<Button-1>", _start_move)
@@ -232,48 +228,51 @@ class FloatingOverlay:
         self.lbl_provider = tk.Label(row1, text=f"🧠 {self.provider_info}", bg="#1e1e24", fg="#61afef", font=("Microsoft YaHei UI", 10, "bold"))
         self.lbl_provider.pack(side="right", padx=12)
 
-        # Row 2: Location & Phase
+        # Row 2: Scene Spatial Perception
         row2 = tk.Frame(container, bg="#1e1e24")
         row2.pack(fill="x", padx=12, pady=(1, 2))
         row2.bind("<Button-1>", _start_move)
         row2.bind("<B1-Motion>", _on_move)
 
-        self.lbl_location = tk.Label(row2, text=f"📍 地形: {self.location_info}", bg="#1e1e24", fg="#d19a66", font=("Microsoft YaHei UI", 10, "bold"))
-        self.lbl_location.pack(side="left")
+        self.lbl_scene = tk.Label(row2, text=f"📍 态势感知: {self.scene_analysis_info}", bg="#1e1e24", fg="#d19a66", font=("Microsoft YaHei UI", 9, "bold"), anchor="w", wraplength=750)
+        self.lbl_scene.pack(side="left", fill="x", expand=True)
 
-        self.lbl_phase = tk.Label(row2, text=f"[{self.phase_info}]", bg="#1e1e24", fg="#98c379", font=("Consolas", 9))
-        self.lbl_phase.pack(side="left", padx=8)
-
-        # Row 3: Macro Goal
+        # Row 3: Action, Target & Threat Bar
         row3 = tk.Frame(container, bg="#1e1e24")
         row3.pack(fill="x", padx=12, pady=(1, 2))
         row3.bind("<Button-1>", _start_move)
         row3.bind("<B1-Motion>", _on_move)
 
-        self.lbl_goal = tk.Label(row3, text=f"🚩 目标: {self.macro_goal_info}", bg="#1e1e24", fg="#e5c07b", font=("Microsoft YaHei UI", 9, "bold"), anchor="w", wraplength=730)
-        self.lbl_goal.pack(side="left", fill="x", expand=True)
+        self.lbl_action = tk.Label(row3, text=f"⚔️ 决策动作: {self.action_info} [{self.duration_info}]", bg="#1e1e24", fg="#98c379", font=("Consolas", 10, "bold"))
+        self.lbl_action.pack(side="left")
 
-        # Row 4: Tactical Directive
+        self.lbl_target = tk.Label(row3, text=f"🎯 目标网格: {self.target_coords_info}", bg="#1e1e24", fg="#61afef", font=("Consolas", 10, "bold"))
+        self.lbl_target.pack(side="left", padx=12)
+
+        self.lbl_threat = tk.Label(row3, text=f"⚠️ 威胁: {self.threat_info}", bg="#1e1e24", fg="#e5c07b", font=("Consolas", 10, "bold"))
+        self.lbl_threat.pack(side="left")
+
+        # Row 4: Spatial Reasoning
         row4 = tk.Frame(container, bg="#1e1e24")
         row4.pack(fill="x", padx=12, pady=(1, 4))
         row4.bind("<Button-1>", _start_move)
         row4.bind("<B1-Motion>", _on_move)
 
-        self.lbl_tactic = tk.Label(row4, text=f"⚔️ 战术: {self.tactic_info}", bg="#1e1e24", fg="#ffffff", font=("Microsoft YaHei UI", 9), anchor="w", justify="left", wraplength=730)
-        self.lbl_tactic.pack(side="left", fill="x", expand=True)
+        self.lbl_reason = tk.Label(row4, text=f"💡 推理依据: {self.reasoning_info}", bg="#1e1e24", fg="#ffffff", font=("Microsoft YaHei UI", 9), anchor="w", justify="left", wraplength=750)
+        self.lbl_reason.pack(side="left", fill="x", expand=True)
 
-        # Row 5: Quick Command & Text Bar
+        # Row 5: Quick Command Bar
         row5 = tk.Frame(container, bg="#21252b", padx=6, pady=4)
         row5.pack(fill="x", padx=8, pady=(2, 4))
 
-        tk.Label(row5, text="⚡ 战术指令:", bg="#21252b", fg="#98c379", font=("Microsoft YaHei UI", 9, "bold")).pack(side="left", padx=(4, 6))
+        tk.Label(row5, text="⚡ 战术插队:", bg="#21252b", fg="#98c379", font=("Microsoft YaHei UI", 9, "bold")).pack(side="left", padx=(4, 6))
 
         btn_style = {"bg": "#3e4451", "fg": "#ffffff", "activebackground": "#61afef", "activeforeground": "#000000", "relief": "flat", "font": ("Microsoft YaHei UI", 8), "padx": 5, "pady": 1}
 
-        tk.Button(row5, text="⬆️ 向上攀登", command=lambda: self._trigger_override("CLIMB_UP"), **btn_style).pack(side="left", padx=2)
-        tk.Button(row5, text="⬅️ 向左回溯", command=lambda: self._trigger_override("FORCE_LEFT"), **btn_style).pack(side="left", padx=2)
-        tk.Button(row5, text="➡️ 向右推进", command=lambda: self._trigger_override("FORCE_RIGHT"), **btn_style).pack(side="left", padx=2)
-        tk.Button(row5, text="⬇️ 跳下深坑", command=lambda: self._trigger_override("DROP_DOWN"), **btn_style).pack(side="left", padx=2)
+        tk.Button(row5, text="⬆️ 向上大跳攀登", command=lambda: self._trigger_override("CLIMB_UP"), **btn_style).pack(side="left", padx=2)
+        tk.Button(row5, text="⬅️ 向左回溯探索", command=lambda: self._trigger_override("FORCE_LEFT"), **btn_style).pack(side="left", padx=2)
+        tk.Button(row5, text="➡️ 向右破门推进", command=lambda: self._trigger_override("FORCE_RIGHT"), **btn_style).pack(side="left", padx=2)
+        tk.Button(row5, text="⬇️ 跳下深坑探秘", command=lambda: self._trigger_override("DROP_DOWN"), **btn_style).pack(side="left", padx=2)
         
         btn_text = {"bg": "#61afef", "fg": "#1e1e24", "activebackground": "#4d97d9", "relief": "flat", "font": ("Microsoft YaHei UI", 8, "bold"), "padx": 6, "pady": 1}
         tk.Button(row5, text="💬 输入文字指令 [F10]", command=self._show_command_dialog, **btn_text).pack(side="left", padx=(6, 2))
@@ -288,10 +287,11 @@ class FloatingOverlay:
                 self.lbl_status.config(text=self.status_text, fg=self.status_color)
                 self.lbl_fps.config(text=self.fps_info)
                 self.lbl_provider.config(text=f"🧠 {self.provider_info}")
-                self.lbl_location.config(text=f"📍 地形: {self.location_info}")
-                self.lbl_phase.config(text=f"[{self.phase_info}]")
-                self.lbl_goal.config(text=f"🚩 目标: {self.macro_goal_info}")
-                self.lbl_tactic.config(text=f"⚔️ 战术: {self.tactic_info}")
+                self.lbl_scene.config(text=f"📍 态势感知: {self.scene_analysis_info}")
+                self.lbl_action.config(text=f"⚔️ 决策动作: {self.action_info} [{self.duration_info}]")
+                self.lbl_target.config(text=f"🎯 目标网格: {self.target_coords_info}")
+                self.lbl_threat.config(text=f"⚠️ 威胁: {self.threat_info}")
+                self.lbl_reason.config(text=f"💡 推理依据: {self.reasoning_info}")
             except Exception:
                 pass
             self.root.after(100, _refresh)
