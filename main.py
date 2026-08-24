@@ -24,6 +24,8 @@ from core.controller.hotkey_listener import GlobalHotkeyManager
 from core.brain.human_override import HumanDirectiveOverride
 from core.brain.vlm_planner import VLMPlanner
 from core.brain.state_machine import ReflexStateMachine
+from core.imitation.demonstration_recorder import DemonstrationRecorder
+from core.imitation.playbook_manager import PlaybookManager
 
 user32 = ctypes.windll.user32
 
@@ -107,7 +109,10 @@ def main():
         hotkey_mgr = GlobalHotkeyManager(controller=controller, hotkey_name=hotkey_name)
         hotkey_mgr.start()
 
-        # 3. Typing State Tracking
+        # 3. Demonstration Recorder (F11)
+        demo_recorder = DemonstrationRecorder(BASE_DIR)
+
+        # 4. Typing State Tracking
         is_typing_command = False
 
         def on_typing_state_change(typing: bool):
@@ -116,18 +121,30 @@ def main():
             if typing:
                 controller.release_all()
 
-        # 4. Floating Overlay Forward Declaration
+        # 5. Floating Overlay Forward Declaration
         overlay = None
 
-        # 5. Human Strategic Override System with F10 Hotkey
+        # 6. Demonstration Toggle Callback
+        def on_toggle_demo():
+            if demo_recorder.is_recording:
+                save_path = demo_recorder.stop_recording_and_save("expert_kings_pass")
+                if overlay:
+                    overlay.set_demo_recording_state(False)
+            else:
+                controller.release_all()
+                demo_recorder.start_recording()
+                if overlay:
+                    overlay.set_demo_recording_state(True)
+
+        # 7. Human Strategic Override System with F10 & F11 Hotkeys
         def on_f10_press():
             if overlay:
                 overlay.summon_text_command_box()
 
-        human_override = HumanDirectiveOverride(on_f10_callback=on_f10_press)
+        human_override = HumanDirectiveOverride(on_f10_callback=on_f10_press, on_f11_callback=on_toggle_demo)
         human_override.start_hotkey_listener()
 
-        # 6. Floating HUD Callback for Buttons & Text Input
+        # 8. Floating HUD Callback for Buttons & Text Input
         def on_overlay_override_click(action_type: str, custom_data: Optional[dict] = None):
             if action_type == "CUSTOM_TEXT_PLAN" and custom_data:
                 human_override.inject_directive(
@@ -153,6 +170,7 @@ def main():
             overlay = FloatingOverlay(
                 on_override_cb=on_overlay_override_click,
                 on_typing_state_cb=on_typing_state_change,
+                on_toggle_demo_cb=on_toggle_demo,
                 game_hwnd=game_hwnd
             )
             overlay.start()
@@ -182,6 +200,10 @@ def main():
                     "is_alive": perception.hud.is_alive
                 }
                 kx, ky = perception.knight.center
+                h_f, w_f = frame.shape[:2]
+                norm_kx = round((kx / max(w_f, 1)) * 100, 1)
+                norm_ky = round((ky / max(h_f, 1)) * 100, 1)
+                demo_recorder.update_knight_pos(norm_kx, norm_ky)
 
                 # VLM Background Strategy Planner
                 vlm_brain.update_strategy_async(frame, hud_info, knight_pos=(kx, ky))
@@ -202,7 +224,9 @@ def main():
                     overlay.update_control_status(is_paused=hotkey_mgr.is_paused, hotkey=hotkey_name, fps=current_fps)
 
                 # Execution state branch:
-                if is_typing_command:
+                if demo_recorder.is_recording:
+                    active_action = "🔴 RECORDING_DEMONSTRATION (Human is Playing)"
+                elif is_typing_command:
                     active_action = "TYPING_COMMAND (PAUSED)"
                 elif hotkey_mgr.is_paused:
                     active_action = f"MANUAL_CONTROL (Press {hotkey_name} to Resume)"
@@ -232,7 +256,6 @@ def main():
                 time.sleep(0.01)
 
             except Exception as frame_err:
-                # Per-frame self-healing protection
                 log_crash_error(f"Per-frame error: {frame_err}\n{traceback.format_exc()}")
                 time.sleep(0.05)
 

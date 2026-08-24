@@ -5,17 +5,22 @@ The project adheres to [Semantic Versioning](https://semver.org/).
 
 ---
 
-## [v2.2.0] - 2026-08-24 (Topological Platform Graph & Frontier Navigator)
+## [v2.3.0] - 2026-08-24 (Human Demonstration & Imitation Learning System)
 
-### 🌟 SOTA Architecture Implementation:
-- **平台拓扑路网导航系统 (Topological Platform Graph Navigator)**:
-  - 借鉴游戏 AI 与机器人 Frontier Exploration / SLAM 前沿成果，构建 `core/brain/topological_navigator.py`；
-  - 彻底抛弃“平地瞎走”模式，将 2D 银河恶魔城空间抽象为**“可站立平台节点 (Platform Nodes)”**与**“跳跃/冲刺有向边 (Action Edges)”**；
-  - 自动规划最短立体跳跃路线：`下层死胡同 ➔ 中央起跳点 ➔ 中层第1石台 ➔ 中层第2石台 ➔ 顶层出口`。
-- **空间滞留热力与排斥势能场 (Stagnation Heatmap & Repulsion Field)**:
-  - 记录每个网格的滞留时长，一旦在右下死角滞留超过 2 秒，系统产生无穷大排斥力，自动将小骑士“推”向中央石阶起跳点。
-- **拓扑死胡同硬过滤器 (Dead-End Safety Filter)**:
-  - 彻底拦截死胡同内的任何 `MOVE_RIGHT` 指令，强制执行 `JUMP_LEFT` 跃向中央。
+### 🌟 New Major Capability: 人类专家示范录制与模仿学习
+- **人类专家示范实时录制器 (Demonstration Recorder)**:
+  - 新增 `core/imitation/demonstration_recorder.py`；
+  - 按下全局快捷键 **`F11`**（或点击悬浮窗 **`🔴 录制示范 [F11]`**），AI 瞬间挂起并进入“观摩学习模式”；
+  - 玩家亲自操作游戏（跑动、跳跃、蓄力攀爬、破门、冲刺），系统以 20Hz 实时采样并提炼压缩为关键空间路标点（Waypoints）。
+- **专家通关秘籍库 (Playbook Manager & Few-Shot Injection)**:
+  - 新增 `core/imitation/playbook_manager.py` 与 `trajectories/expert_kings_pass.json`；
+  - 录制完成后再次按下 **`F11`**，系统自动将玩家的通关轨迹固化为结构化“通关秘籍”；
+  - 大模型每次决策时自动对齐玩家专家的路标动作，小脑直接沿专家示范轨迹自主复刻通关！
+
+---
+
+## [v2.2.0] - 2026-08-24 (Topological Platform Graph & Frontier Navigator)
+- 平台跳跃拓扑路网与空间排斥探索引擎。
 
 ---
 

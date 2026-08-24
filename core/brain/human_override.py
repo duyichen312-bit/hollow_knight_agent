@@ -8,16 +8,16 @@ user32 = ctypes.windll.user32
 
 class HumanDirectiveOverride:
     """
-    Human Strategic Directive Override System.
-    Guarantees 100% immediate preemption of all LLM and local navigation states.
-    Supports global hotkeys and F10 summonable text command bar.
+    Human Strategic Directive Override & Demonstration Trigger System.
+    Handles F9 (AI pause/resume), F10 (Text command bar), and F11 (Demonstration recording).
     """
-    def __init__(self, on_f10_callback: Optional[Callable] = None):
+    def __init__(self, on_f10_callback: Optional[Callable] = None, on_f11_callback: Optional[Callable] = None):
         self.is_active = False
         self.override_until = 0.0
         self.directive_name = ""
         self.override_strategy: Dict[str, Any] = {}
         self.on_f10_callback = on_f10_callback
+        self.on_f11_callback = on_f11_callback
         self._running = False
         self._thread: Optional[threading.Thread] = None
 
@@ -50,7 +50,6 @@ class HumanDirectiveOverride:
             pass
         print(f"\n==========================================================================")
         print(f"  [🚨 人工指令强制生效] 指令: {name} | 方向: {direction} | 持续: {duration}s")
-        print(f"  (大模型与死胡同回溯已被彻底强行中断，小脑全力听从您的指挥！)")
         print(f"==========================================================================\n")
 
     def clear_override(self):
@@ -85,18 +84,28 @@ class HumanDirectiveOverride:
         VK_BACK = 0x08
         VK_NUMPAD0 = 0x60
         VK_F10 = 0x79
+        VK_F11 = 0x7A
 
         while self._running:
-            # 1. Global F10 Hotkey: Summon Text Command Bar
-            if (user32.GetAsyncKeyState(VK_F10) & 0x8000) != 0:
+            # 1. Global F11 Hotkey: Human Demonstration Toggle
+            if (user32.GetAsyncKeyState(VK_F11) & 0x8000) != 0:
+                if self.on_f11_callback:
+                    try:
+                        self.on_f11_callback()
+                    except Exception:
+                        pass
+                time.sleep(0.40)
+
+            # 2. Global F10 Hotkey: Summon Text Command Bar
+            elif (user32.GetAsyncKeyState(VK_F10) & 0x8000) != 0:
                 if self.on_f10_callback:
                     try:
                         self.on_f10_callback()
                     except Exception:
                         pass
-                time.sleep(0.35)
+                time.sleep(0.40)
 
-            # 2. Ctrl + Directional Shortcuts
+            # 3. Ctrl + Directional Shortcuts
             ctrl_down = (user32.GetAsyncKeyState(VK_CONTROL) & 0x8000) != 0
             if ctrl_down:
                 if (user32.GetAsyncKeyState(VK_LEFT) & 0x8000) != 0:

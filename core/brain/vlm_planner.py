@@ -16,6 +16,7 @@ from core.perception.grid_annotator import VisualGridAnnotator
 from core.brain.action_history_buffer import ActionHistoryBuffer
 from core.brain.stage_map_knowledge import StageMapKnowledge
 from core.brain.topological_navigator import TopologicalPlatformNavigator
+from core.imitation.playbook_manager import PlaybookManager
 
 try:
     from google import genai
@@ -50,7 +51,7 @@ def extract_json_from_text(text: str) -> Optional[dict]:
 
 class VLMPlanner:
     """
-    Spatial ReAct Multimodal Brain with Topological Platform Graph & Frontier Navigator.
+    Spatial ReAct Multimodal Brain with Human Demonstration Learning & Topological Navigator.
     """
     def __init__(self, config: dict = None):
         self.config = config or {}
@@ -78,6 +79,8 @@ class VLMPlanner:
         self.history_buffer = ActionHistoryBuffer(max_size=3)
         # Topological Platform Navigator
         self.topo_nav = TopologicalPlatformNavigator()
+        # Human Demonstration Playbook Manager
+        self.playbook_mgr = PlaybookManager(self.base_dir)
 
         # Logs Directory
         self.logs_dir = os.path.join(self.base_dir, "logs")
@@ -191,26 +194,27 @@ class VLMPlanner:
             except Exception:
                 pass
 
-            # Stage 2: Topological Graph Planning
+            # Stage 2: Topological Graph Planning & Human Expert Playbook
             topo_plan = self.topo_nav.plan_next_topological_action(norm_kx, norm_ky)
             stage_knowledge = StageMapKnowledge.get_stage_prompt_context("KINGS_PASS")
             current_subzone = StageMapKnowledge.identify_zone("KINGS_PASS", norm_kx, norm_ky)
+            playbook_text = self.playbook_mgr.format_playbook_prompt()
 
             # Stage 3: Action Context Buffer (Recent 3 steps)
             history_text = self.history_buffer.format_history_prompt()
 
-            # Stage 4: ReAct Framework Prompt with Topological Navigator
+            # Stage 4: ReAct Framework Prompt with Demonstration Learning
             prompt = f"""
-你是一名具备顶级空间几何与关卡拓扑感知能力的《空洞骑士》多模态 ReAct 决策大脑。
+你是一名具备顶级空间几何、关卡拓扑与人类专家示范学习能力的《空洞骑士》多模态 ReAct 决策大脑。
 输入图片已叠加 0~100 归一化绿色坐标网格标尺（左上角为(0,0)，右下角为(100,100)）。
 
 {stage_knowledge}
 
-【拓扑路网导航系统实时计算 (Topological Path Planning)】:
-- 当前所在平台: {topo_plan['current_node']}
-- 目标下一平台: {topo_plan['target_node']}
-- 导航推荐动作: {topo_plan['action']} (目标网格 {topo_plan['target_coords']})
-- 拓扑路线依据: {topo_plan['reasoning']}
+{playbook_text}
+
+【拓扑路网导航系统推荐路径】:
+- 当前所在平台: {topo_plan['current_node']} ➔ 目标下一平台: {topo_plan['target_node']}
+- 推荐动作: {topo_plan['action']} (目标网格 {topo_plan['target_coords']})
 
 【小骑士当前精准地标与区域定位】:
 - 当前网格坐标: X={norm_kx}, Y={norm_ky}
@@ -223,9 +227,9 @@ class VLMPlanner:
 【当前小骑士状态】:
 - 生命值 (HP): {hud_info.get('health', 5)} / {hud_info.get('max_health', 5)}
 
-【决策硬法则】:
-1. 观察网格与拓扑导航系统推荐的路径；
-2. ⚠️ 若处于下层右侧 (X>=68, Y>=55)，右侧为绝对封死岩壁，严禁向右！必须向左折返至中央起跳点向上大跳攀登悬空石阶！
+【对齐人类专家示范行为】:
+1. 严格对照【人类专家实操通关轨迹秘籍】，学习人类专家在当前坐标下的跳跃与攀登决策！
+2. ⚠️ 若处于下层右侧 (X>=68, Y>=55)，右侧为绝对封死死胡同，必须向左折返至中央起跳点向上大跳攀登悬空石阶！
 
 【支持 action 动作代码库】:
 - "MOVE_RIGHT" / "MOVE_LEFT" (地面稳步探索移动)
@@ -248,7 +252,7 @@ class VLMPlanner:
   "action": "上述动作代码之一",
   "target_coords": [50, 52],
   "duration_ms": 600,
-  "reasoning": "基于网格坐标与关卡拓扑推理出的详细战术决策理由"
+  "reasoning": "基于人类专家示范秘籍与关卡拓扑推理出的详细战术决策理由"
 }}
 """
             data = None
@@ -303,7 +307,7 @@ class VLMPlanner:
             if (norm_kx >= 68.0 and norm_ky >= 55.0) and "RIGHT" in data.get("action", ""):
                 data["action"] = "JUMP_LEFT"
                 data["target_coords"] = [50, 52]
-                data["reasoning"] = "[拓扑硬规则触发] 处于右侧死胡同盲区，强制向左折返跃上中央石阶！"
+                data["reasoning"] = "[对齐专家秘籍] 处于右侧死胡同盲区，向左折返跃上中央悬空石阶！"
 
             act = data.get("action", "MOVE_RIGHT")
             data["current_location"] = f"{data.get('current_stage', '国王山道')} | {data.get('current_zone', '探索区')}"
@@ -332,7 +336,7 @@ class VLMPlanner:
             self._record_decision_log(data, (norm_kx, norm_ky))
 
             print(f"\n==========================================================================")
-            print(f"  [🗺️ 拓扑路网规划] {data.get('current_stage')} | {data.get('current_zone')}")
+            print(f"  [🎓 专家秘籍学习对齐] {data.get('current_stage')} | {data.get('current_zone')}")
             print(f"  - 坐标: ({norm_kx}, {norm_ky}) | 动作: {data.get('action')} ➔ 目标: {data.get('target_coords')}")
             print(f"  - 推理依据: {data.get('reasoning')}")
             print(f"==========================================================================\n")

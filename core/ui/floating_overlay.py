@@ -9,24 +9,27 @@ user32 = ctypes.windll.user32
 
 class FloatingOverlay:
     """
-    Spatial ReAct Topmost Floating HUD Overlay with Global Stage Atlas & Sub-zone Display.
+    Spatial ReAct Topmost Floating HUD Overlay with Demonstration Recording (F11).
     """
     def __init__(self, title_text: str = "Hollow Knight VLM HUD", 
                  on_override_cb: Optional[Callable] = None,
                  on_typing_state_cb: Optional[Callable[[bool], None]] = None,
+                 on_toggle_demo_cb: Optional[Callable] = None,
                  game_hwnd: Optional[int] = None):
         self.title_text = title_text
         self.on_override_cb = on_override_cb
         self.on_typing_state_cb = on_typing_state_cb
+        self.on_toggle_demo_cb = on_toggle_demo_cb
         self.game_hwnd = game_hwnd
         
         self.is_running = False
         self.is_typing_command = False
+        self.is_demo_recording = False
         self.root: Optional[tk.Tk] = None
         self._thread: Optional[threading.Thread] = None
 
         # Live State Data (Spatial ReAct & Stage Locator)
-        self.status_text = "🟢 AI 空间ReAct决策中 (按 [F9] 随时接管)"
+        self.status_text = "🟢 AI 空间ReAct决策中 (按 [F9] 接管 | [F11] 示范)"
         self.status_color = "#98c379"
         self.provider_info = "Gemini 3.6 Flash"
         self.stage_info = "国王山道 (King\'s Pass) - 序章第一关"
@@ -44,6 +47,9 @@ class FloatingOverlay:
 
     def set_game_hwnd(self, hwnd: int):
         self.game_hwnd = hwnd
+
+    def set_demo_recording_state(self, is_recording: bool):
+        self.is_demo_recording = is_recording
 
     def start(self):
         self.is_running = True
@@ -152,7 +158,10 @@ class FloatingOverlay:
             self.provider_info = provider_name
 
     def update_control_status(self, is_paused: bool, hotkey: str = "F9", fps: float = 60.0):
-        if self.is_typing_command:
+        if self.is_demo_recording:
+            self.status_text = "🔴 正在录制人类通关示范中... (按 [F11] 结束并让AI学习)"
+            self.status_color = "#e06c75" # Red
+        elif self.is_typing_command:
             self.status_text = "💬 正在输入文字指令 (本地控制已安全挂起)"
             self.status_color = "#61afef"
         elif is_paused:
@@ -162,13 +171,17 @@ class FloatingOverlay:
             self.status_text = f"🚨 人工指令优先执行中 (按 [F10] 输入新指令)"
             self.status_color = "#e06c75"
         else:
-            self.status_text = f"🟢 AI 空间ReAct决策中 (按 [{hotkey}] 暂停 | [F10] 文字指令)"
+            self.status_text = f"🟢 空间ReAct+专家对齐中 (按 [{hotkey}] 接管 | [F11] 录制示范)"
             self.status_color = "#98c379"
         self.fps_info = f"{fps:.1f} FPS"
 
     def _trigger_override(self, action_type: str, custom_data: Optional[dict] = None):
         if self.on_override_cb:
             self.on_override_cb(action_type, custom_data)
+
+    def _trigger_toggle_demo(self):
+        if self.on_toggle_demo_cb:
+            self.on_toggle_demo_cb()
 
     def _run_gui(self):
         self.root = tk.Tk()
@@ -179,9 +192,9 @@ class FloatingOverlay:
         except Exception:
             pass
 
-        # Window Geometry: 800x245
+        # Window Geometry: 820x245
         sw = self.root.winfo_screenwidth()
-        w, h = 800, 245
+        w, h = 820, 245
         x = (sw - w) // 2
         y = 15
         self.root.geometry(f"{w}x{h}+{x}+{y}")
@@ -232,7 +245,7 @@ class FloatingOverlay:
         self.lbl_provider = tk.Label(row1, text=f"🧠 {self.provider_info}", bg="#1e1e24", fg="#61afef", font=("Microsoft YaHei UI", 10, "bold"))
         self.lbl_provider.pack(side="right", padx=12)
 
-        # Row 2: Stage & Sub-zone Locator (NEW)
+        # Row 2: Stage & Sub-zone Locator
         row2 = tk.Frame(container, bg="#1e1e24")
         row2.pack(fill="x", padx=12, pady=(1, 2))
         row2.bind("<Button-1>", _start_move)
@@ -250,7 +263,7 @@ class FloatingOverlay:
         row3.bind("<Button-1>", _start_move)
         row3.bind("<B1-Motion>", _on_move)
 
-        self.lbl_scene = tk.Label(row3, text=f"📍 态势感知: {self.scene_analysis_info}", bg="#1e1e24", fg="#d19a66", font=("Microsoft YaHei UI", 9), anchor="w", wraplength=770)
+        self.lbl_scene = tk.Label(row3, text=f"📍 态势感知: {self.scene_analysis_info}", bg="#1e1e24", fg="#d19a66", font=("Microsoft YaHei UI", 9), anchor="w", wraplength=790)
         self.lbl_scene.pack(side="left", fill="x", expand=True)
 
         # Row 4: Action, Target & Threat Bar
@@ -274,10 +287,10 @@ class FloatingOverlay:
         row5.bind("<Button-1>", _start_move)
         row5.bind("<B1-Motion>", _on_move)
 
-        self.lbl_reason = tk.Label(row5, text=f"💡 推理依据: {self.reasoning_info}", bg="#1e1e24", fg="#ffffff", font=("Microsoft YaHei UI", 9), anchor="w", justify="left", wraplength=770)
+        self.lbl_reason = tk.Label(row5, text=f"💡 推理依据: {self.reasoning_info}", bg="#1e1e24", fg="#ffffff", font=("Microsoft YaHei UI", 9), anchor="w", justify="left", wraplength=790)
         self.lbl_reason.pack(side="left", fill="x", expand=True)
 
-        # Row 6: Quick Command Bar
+        # Row 6: Quick Command & Demonstration Bar
         row6 = tk.Frame(container, bg="#21252b", padx=6, pady=4)
         row6.pack(fill="x", padx=8, pady=(2, 4))
 
@@ -285,13 +298,16 @@ class FloatingOverlay:
 
         btn_style = {"bg": "#3e4451", "fg": "#ffffff", "activebackground": "#61afef", "activeforeground": "#000000", "relief": "flat", "font": ("Microsoft YaHei UI", 8), "padx": 5, "pady": 1}
 
-        tk.Button(row6, text="⬆️ 向上大跳攀登", command=lambda: self._trigger_override("CLIMB_UP"), **btn_style).pack(side="left", padx=2)
-        tk.Button(row6, text="⬅️ 向左回溯探索", command=lambda: self._trigger_override("FORCE_LEFT"), **btn_style).pack(side="left", padx=2)
-        tk.Button(row6, text="➡️ 向右破门推进", command=lambda: self._trigger_override("FORCE_RIGHT"), **btn_style).pack(side="left", padx=2)
-        tk.Button(row6, text="⬇️ 跳下深坑探秘", command=lambda: self._trigger_override("DROP_DOWN"), **btn_style).pack(side="left", padx=2)
+        tk.Button(row6, text="⬆️ 向上大跳", command=lambda: self._trigger_override("CLIMB_UP"), **btn_style).pack(side="left", padx=2)
+        tk.Button(row6, text="⬅️ 向左回溯", command=lambda: self._trigger_override("FORCE_LEFT"), **btn_style).pack(side="left", padx=2)
+        tk.Button(row6, text="➡️ 向右推进", command=lambda: self._trigger_override("FORCE_RIGHT"), **btn_style).pack(side="left", padx=2)
         
+        btn_demo = {"bg": "#c678dd", "fg": "#ffffff", "activebackground": "#a052b5", "relief": "flat", "font": ("Microsoft YaHei UI", 8, "bold"), "padx": 6, "pady": 1}
+        self.btn_demo_record = tk.Button(row6, text="🔴 录制示范 [F11]", command=self._trigger_toggle_demo, **btn_demo)
+        self.btn_demo_record.pack(side="left", padx=(4, 2))
+
         btn_text = {"bg": "#61afef", "fg": "#1e1e24", "activebackground": "#4d97d9", "relief": "flat", "font": ("Microsoft YaHei UI", 8, "bold"), "padx": 6, "pady": 1}
-        tk.Button(row6, text="💬 输入文字指令 [F10]", command=self._show_command_dialog, **btn_text).pack(side="left", padx=(6, 2))
+        tk.Button(row6, text="💬 文字指令 [F10]", command=self._show_command_dialog, **btn_text).pack(side="left", padx=(4, 2))
 
         btn_reset = {"bg": "#e06c75", "fg": "#ffffff", "activebackground": "#c7515b", "relief": "flat", "font": ("Microsoft YaHei UI", 8, "bold"), "padx": 6, "pady": 1}
         tk.Button(row6, text="🔄 恢复大模型", command=lambda: self._trigger_override("CLEAR_OVERRIDE"), **btn_reset).pack(side="right", padx=4)
@@ -310,6 +326,11 @@ class FloatingOverlay:
                 self.lbl_target.config(text=f"🎯 目标网格: {self.target_coords_info}")
                 self.lbl_threat.config(text=f"⚠️ 威胁: {self.threat_info}")
                 self.lbl_reason.config(text=f"💡 推理依据: {self.reasoning_info}")
+                
+                if self.is_demo_recording:
+                    self.btn_demo_record.config(text="⏹️ 结束示范 [F11]", bg="#e06c75")
+                else:
+                    self.btn_demo_record.config(text="🔴 录制示范 [F11]", bg="#c678dd")
             except Exception:
                 pass
             self.root.after(100, _refresh)
