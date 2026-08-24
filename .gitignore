@@ -2,3 +2,7 @@
 *.pyc
 .tempmediaStorage/
 assets/live_hud.jpg
+assets/vlm_input_grid.jpg
+.env
+logs/*.log
+logs/*.jsonl
