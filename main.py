@@ -19,6 +19,7 @@ from core.ui.visual_debugger import VisualDebugger
 from core.ui.floating_overlay import FloatingOverlay
 from core.controller.gamepad import GameController
 from core.controller.hotkey_listener import GlobalHotkeyManager
+from core.brain.human_override import HumanDirectiveOverride
 from core.brain.vlm_planner import VLMPlanner
 from core.brain.state_machine import ReflexStateMachine
 
@@ -92,10 +93,26 @@ def main():
     hotkey_mgr = GlobalHotkeyManager(controller=controller, hotkey_name=hotkey_name)
     hotkey_mgr.start()
 
-    # 3. Topmost Floating HUD Overlay (屏幕最前端无感悬浮窗)
+    # 3. Human Strategic Override System (人类指令插队系统)
+    human_override = HumanDirectiveOverride()
+    human_override.start_hotkey_listener()
+
+    # 4. Floating HUD Overlay Callback
+    def on_overlay_override_click(action_type: str):
+        if action_type == "CLIMB_UP":
+            human_override.inject_directive("向上大跳攀登新阶梯", "RIGHT", "UPWARD_CLIMB", "JUMP_CLIMB_UP", "长蓄力连续大跳登上层层石阶平台", 15.0)
+        elif action_type == "FORCE_LEFT":
+            human_override.inject_directive("向左深度探索/回溯", "LEFT", "HORIZONTAL_EXPLORE", "NONE", "稳步向左侧探索隐藏支线与金币宝箱", 15.0)
+        elif action_type == "FORCE_RIGHT":
+            human_override.inject_directive("向右破门主线推进", "RIGHT", "HORIZONTAL_EXPLORE", "NONE", "向右破门推进，消灭爬虫与障碍", 15.0)
+        elif action_type == "DROP_DOWN":
+            human_override.inject_directive("向下跃下深坑探秘", "RIGHT", "DROP_DOWN", "DROP_DOWN", "走到悬崖边缘跳下深坑进入下层", 15.0)
+        elif action_type == "CLEAR_OVERRIDE":
+            human_override.clear_override()
+
     overlay = None
     if enable_overlay:
-        overlay = FloatingOverlay()
+        overlay = FloatingOverlay(on_override_cb=on_overlay_override_click)
         overlay.start()
 
     vlm_brain = VLMPlanner(config=config.get("brain", {}).get("llm", {}))
@@ -126,18 +143,27 @@ def main():
 
             # VLM Background Strategy Planner
             vlm_brain.update_strategy_async(frame, hud_info, knight_pos=(kx, ky))
-            current_strategy = vlm_brain.get_strategy()
+            vlm_strategy = vlm_brain.get_strategy()
+
+            # Priority 1: Check if Human Directive Override is active!
+            override_strat = human_override.get_active_override_strategy()
+            if override_strat:
+                effective_strategy = override_strat
+                is_override = True
+            else:
+                effective_strategy = vlm_strategy
+                is_override = False
 
             # Update Floating Overlay HUD in real time
             if overlay:
-                overlay.update_vlm_strategy(current_strategy, provider_name=vlm_brain.model_name)
+                overlay.update_vlm_strategy(effective_strategy, provider_name=vlm_brain.model_name, is_human_override=is_override)
                 overlay.update_control_status(is_paused=hotkey_mgr.is_paused, hotkey=hotkey_name, fps=current_fps)
 
             # Execute actions based on Hotkey state (AI vs Human Manual Control)
             if hotkey_mgr.is_paused:
                 active_action = f"⏸️ MANUAL_HUMAN_CONTROL (Press [{hotkey_name}] to Resume AI)"
             else:
-                active_action = state_machine.step(perception, current_strategy)
+                active_action = state_machine.step(perception, effective_strategy)
 
             # FPS calculation
             frame_count += 1
@@ -152,7 +178,7 @@ def main():
                     frame=frame,
                     perception=perception,
                     fps=current_fps,
-                    strategy_info=current_strategy,
+                    strategy_info=effective_strategy,
                     active_action=active_action
                 )
                 snapshot_path = os.path.join(BASE_DIR, "assets", "live_hud.jpg")
@@ -166,6 +192,7 @@ def main():
     finally:
         if overlay:
             overlay.stop()
+        human_override.stop()
         hotkey_mgr.stop()
         controller.release_all()
         capture.close()
