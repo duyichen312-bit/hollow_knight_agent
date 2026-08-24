@@ -5,19 +5,22 @@ The project adheres to [Semantic Versioning](https://semver.org/).
 
 ---
 
-## [v1.3.0] - 2026-08-24 (Always-on-Top Floating VLM HUD Overlay)
+## [v1.3.1] - 2026-08-24 (Expanded Floating Overlay HUD)
 
 ### 🌟 New Features & Enhancements:
-- **屏幕最前端无感悬浮战术 HUD (Floating HUD Overlay)**:
-  - 启动游戏后，屏幕顶部中央会自动浮现一个**暗色半透明无边框战术悬浮窗** (`core/ui/floating_overlay.py`)。
-  - **实时显示**:
-    1. 🟢 运行状态与热键提示（`AI 自动运行中 / 人类手动接管中 - 按 F9 切换`）；
-    2. 🧠 当前调用的大模型与实时 FPS（如 `Gemini 3.6 Flash | 60.0 FPS`）；
-    3. 📍 实时场景与地形定位（如 `场景: 国王山道下层洞穴区（右侧阶梯平台起点）`）；
-    4. ⚔️ 大模型实时微操战术（如 `战术: 沿右上平台连续大跳攀爬，避开刺坑并消灭沿途飞虫`）。
-  - **防焦点争抢与自由拖拽**:
-    - 基于 Win32 `WS_EX_NOACTIVATE` 底层机制，**悬浮窗绝不抢夺游戏焦点与键盘输入**，小骑士操作丝滑流畅；
-    - 支持鼠标按住悬浮窗自由拖拽到屏幕任意位置。
+- **悬浮窗高度翻倍扩展 (Doubled Height Floating HUD)**:
+  - 悬浮窗垂直高度从 95px **翻倍扩展至 190px**（宽度 720px），整体排版更加开阔舒适。
+  - **丰富多行战术展示**:
+    - 第 1 行: 状态指示灯（🟢 AI运行中 / ⏸️ 人工接管）+ 调用模型 + 实时 FPS。
+    - 第 2 行: 📍 精确地形定位 + 当前关卡阶段标签（如 `[PHASE_3_LOWER_CAVERN]`）。
+    - 第 3 行: 🚩 大模型宏观战略目标。
+    - 第 4 行: ⚔️ 大模型微操多行战术指引（宽幅自适应换行）。
+    - 第 5 行: 💡 自由拖拽与 F9 快捷键提示条。
+
+---
+
+## [v1.3.0] - 2026-08-24 (Always-on-Top Floating VLM HUD Overlay)
+- 屏幕最前端无感战术悬浮 HUD（基于 Win32 `WS_EX_NOACTIVATE` 零抢焦点）。
 
 ---
 

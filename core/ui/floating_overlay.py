@@ -1,14 +1,12 @@
 ﻿import time
 import threading
 import tkinter as tk
-from tkinter import ttk
 from typing import Optional, Dict, Any
 
 class FloatingOverlay:
     """
-    Topmost Floating HUD Overlay (屏幕最前端无感悬浮战术HUD).
-    Displays real-time VLM strategic guidance, terrain assessment, and AI/Human control status.
-    Uses Win32 WS_EX_NOACTIVATE to guarantee zero focus stealing from the game.
+    Enhanced Topmost Floating HUD Overlay (加高加清晰版屏幕最前端战术HUD).
+    Double vertical height for comfortable multi-line tactical guidance reading.
     """
     def __init__(self, title_text: str = "Hollow Knight VLM HUD"):
         self.title_text = title_text
@@ -17,11 +15,14 @@ class FloatingOverlay:
         self._thread: Optional[threading.Thread] = None
 
         # Live State Data
-        self.status_text = "🤖 AI 自动运行中 (按 [F9] 暂停)"
+        self.status_text = "🟢 AI 自动运行中 (按 [F9] 随时接管)"
         self.status_color = "#98c379" # Green
         self.provider_info = "Gemini 3.6 Flash"
         self.location_info = "King\'s Pass (国王山道起始区)"
-        self.tactic_info = "向前探索并斩碎木门，跃下深坑进入下层"
+        self.phase_info = "PHASE_1_BARRIER"
+        self.nav_mode_info = "HORIZONTAL_AND_UPWARD_CLIMB"
+        self.macro_goal_info = "向前探索并斩碎木门，跃下深坑进入下层"
+        self.tactic_info = "贴近木门起跳连斩破门；落入深坑后搜刮金币与矿脉；沿右上平台连续大跳向上攀爬登顶！"
         self.fps_info = "60.0 FPS"
 
     def start(self):
@@ -40,16 +41,19 @@ class FloatingOverlay:
     def update_vlm_strategy(self, strategy: Dict[str, Any], provider_name: str = ""):
         if strategy:
             self.location_info = str(strategy.get("current_location", self.location_info))
-            self.tactic_info = str(strategy.get("tactic", strategy.get("macro_goal", self.tactic_info)))
+            self.phase_info = str(strategy.get("exploration_phase", self.phase_info))
+            self.nav_mode_info = str(strategy.get("navigation_mode", self.nav_mode_info))
+            self.macro_goal_info = str(strategy.get("macro_goal", self.macro_goal_info))
+            self.tactic_info = str(strategy.get("tactic", self.tactic_info))
         if provider_name:
             self.provider_info = provider_name
 
     def update_control_status(self, is_paused: bool, hotkey: str = "F9", fps: float = 60.0):
         if is_paused:
             self.status_text = f"⏸️ 人类手动接管中 (按 [{hotkey}] 恢复AI)"
-            self.status_color = "#e5c07b" # Amber/Yellow
+            self.status_color = "#e5c07b" # Amber
         else:
-            self.status_text = f"🤖 AI 自动运行中 (按 [{hotkey}] 暂停)"
+            self.status_text = f"🟢 AI 自动运行中 (按 [{hotkey}] 暂停)"
             self.status_color = "#98c379" # Green
         self.fps_info = f"{fps:.1f} FPS"
 
@@ -57,25 +61,24 @@ class FloatingOverlay:
         self.root = tk.Tk()
         self.root.title(self.title_text)
         
-        # High DPI on Windows
         try:
             import ctypes
             ctypes.windll.shcore.SetProcessDpiAwareness(1)
         except Exception:
             pass
 
-        # Window Geometry & Always-on-Top Frameless Styling
+        # Window Geometry: Doubled height (190px)
         sw = self.root.winfo_screenwidth()
-        w, h = 660, 95
+        w, h = 720, 190 # Doubled vertical height!
         x = (sw - w) // 2
         y = 15 # Top-center positioning
         self.root.geometry(f"{w}x{h}+{x}+{y}")
-        self.root.overrideredirect(True) # Frameless
-        self.root.attributes("-topmost", True) # Always on top
-        self.root.attributes("-alpha", 0.90) # Semi-transparent dark glass
-        self.root.configure(bg="#1e1e24")
+        self.root.overrideredirect(True)
+        self.root.attributes("-topmost", True)
+        self.root.attributes("-alpha", 0.92) # Clean readable glass
+        self.root.configure(bg="#18181f")
 
-        # Win32 Focus Protection: WS_EX_NOACTIVATE & WS_EX_TOOLWINDOW
+        # Win32 Focus Protection
         try:
             import win32gui
             import win32con
@@ -86,11 +89,9 @@ class FloatingOverlay:
         except Exception:
             pass
 
-        # Main Container Frame with drag support
-        container = tk.Frame(self.root, bg="#1e1e24", highlightbackground="#3e4451", highlightthickness=1)
+        container = tk.Frame(self.root, bg="#1e1e24", highlightbackground="#4b5263", highlightthickness=1)
         container.pack(fill="both", expand=True)
 
-        # Allow dragging window
         def _start_move(event):
             self.root._x = event.x
             self.root._y = event.y
@@ -105,38 +106,59 @@ class FloatingOverlay:
         container.bind("<Button-1>", _start_move)
         container.bind("<B1-Motion>", _on_move)
 
-        # 1. Top Status Row
+        # Row 1: Header / Status & Model Bar
         row1 = tk.Frame(container, bg="#1e1e24")
-        row1.pack(fill="x", padx=10, pady=(6, 2))
+        row1.pack(fill="x", padx=12, pady=(8, 4))
         row1.bind("<Button-1>", _start_move)
         row1.bind("<B1-Motion>", _on_move)
 
-        self.lbl_status = tk.Label(row1, text=self.status_text, bg="#1e1e24", fg=self.status_color, font=("Microsoft YaHei UI", 10, "bold"))
+        self.lbl_status = tk.Label(row1, text=self.status_text, bg="#1e1e24", fg=self.status_color, font=("Microsoft YaHei UI", 11, "bold"))
         self.lbl_status.pack(side="left")
 
-        self.lbl_fps = tk.Label(row1, text=self.fps_info, bg="#1e1e24", fg="#abb2bf", font=("Consolas", 9))
+        self.lbl_fps = tk.Label(row1, text=self.fps_info, bg="#1e1e24", fg="#abb2bf", font=("Consolas", 10))
         self.lbl_fps.pack(side="right")
 
-        self.lbl_provider = tk.Label(row1, text=f"🧠 {self.provider_info}", bg="#1e1e24", fg="#61afef", font=("Microsoft YaHei UI", 9))
+        self.lbl_provider = tk.Label(row1, text=f"🧠 {self.provider_info}", bg="#1e1e24", fg="#61afef", font=("Microsoft YaHei UI", 10, "bold"))
         self.lbl_provider.pack(side="right", padx=12)
 
-        # 2. Location & Terrain Row
+        # Row 2: Location & Phase Bar
         row2 = tk.Frame(container, bg="#1e1e24")
-        row2.pack(fill="x", padx=10, pady=(0, 2))
+        row2.pack(fill="x", padx=12, pady=(2, 4))
         row2.bind("<Button-1>", _start_move)
         row2.bind("<B1-Motion>", _on_move)
 
-        self.lbl_location = tk.Label(row2, text=f"📍 场景: {self.location_info}", bg="#1e1e24", fg="#d19a66", font=("Microsoft YaHei UI", 9, "bold"))
+        self.lbl_location = tk.Label(row2, text=f"📍 地形: {self.location_info}", bg="#1e1e24", fg="#d19a66", font=("Microsoft YaHei UI", 10, "bold"))
         self.lbl_location.pack(side="left")
 
-        # 3. Tactical Directive Row
+        self.lbl_phase = tk.Label(row2, text=f"[{self.phase_info}]", bg="#1e1e24", fg="#98c379", font=("Consolas", 9))
+        self.lbl_phase.pack(side="left", padx=8)
+
+        # Row 3: Macro Goal Bar
         row3 = tk.Frame(container, bg="#1e1e24")
-        row3.pack(fill="x", padx=10, pady=(0, 6))
+        row3.pack(fill="x", padx=12, pady=(2, 4))
         row3.bind("<Button-1>", _start_move)
         row3.bind("<B1-Motion>", _on_move)
 
-        self.lbl_tactic = tk.Label(row3, text=f"⚔️ 战术: {self.tactic_info}", bg="#1e1e24", fg="#ffffff", font=("Microsoft YaHei UI", 9), anchor="w", wraplength=640)
+        self.lbl_goal = tk.Label(row3, text=f"🚩 目标: {self.macro_goal_info}", bg="#1e1e24", fg="#e5c07b", font=("Microsoft YaHei UI", 9, "bold"), anchor="w", wraplength=690)
+        self.lbl_goal.pack(side="left", fill="x", expand=True)
+
+        # Row 4: Tactical Directive Bar
+        row4 = tk.Frame(container, bg="#1e1e24")
+        row4.pack(fill="x", padx=12, pady=(2, 4))
+        row4.bind("<Button-1>", _start_move)
+        row4.bind("<B1-Motion>", _on_move)
+
+        self.lbl_tactic = tk.Label(row4, text=f"⚔️ 战术: {self.tactic_info}", bg="#1e1e24", fg="#ffffff", font=("Microsoft YaHei UI", 9), anchor="w", justify="left", wraplength=690)
         self.lbl_tactic.pack(side="left", fill="x", expand=True)
+
+        # Row 5: Footer Hint Bar
+        row5 = tk.Frame(container, bg="#18181f")
+        row5.pack(fill="x", padx=6, pady=(4, 6))
+        row5.bind("<Button-1>", _start_move)
+        row5.bind("<B1-Motion>", _on_move)
+
+        lbl_hint = tk.Label(row5, text="💡 提示: 鼠标按住本窗任意位置可自由拖拽 | 游戏中按 [F9] 随时暂停/接管", bg="#18181f", fg="#5c6370", font=("Microsoft YaHei UI", 8))
+        lbl_hint.pack(side="left", padx=6)
 
         # Refresh loop
         def _refresh():
@@ -146,7 +168,9 @@ class FloatingOverlay:
                 self.lbl_status.config(text=self.status_text, fg=self.status_color)
                 self.lbl_fps.config(text=self.fps_info)
                 self.lbl_provider.config(text=f"🧠 {self.provider_info}")
-                self.lbl_location.config(text=f"📍 场景: {self.location_info}")
+                self.lbl_location.config(text=f"📍 地形: {self.location_info}")
+                self.lbl_phase.config(text=f"[{self.phase_info}]")
+                self.lbl_goal.config(text=f"🚩 目标: {self.macro_goal_info}")
                 self.lbl_tactic.config(text=f"⚔️ 战术: {self.tactic_info}")
             except Exception:
                 pass
