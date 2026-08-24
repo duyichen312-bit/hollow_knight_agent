@@ -1,0 +1,75 @@
+﻿{
+  "active_profile_id": "gemini_official_paid",
+  "profiles": {
+    "gemini_official_paid": {
+      "id": "gemini_official_paid",
+      "name": "Google Gemini 官方 (付费高并发版)",
+      "provider": "gemini",
+      "model": "gemini-3.6-flash",
+      "base_url": "",
+      "api_key_env": "GEMINI_API_KEY",
+      "decision_interval_sec": 2.0,
+      "description": "谷歌原生 SDK 直连，多模态毫秒级响应，官方付费极速无配额限制。"
+    },
+    "openrouter_gemini_flash": {
+      "id": "openrouter_gemini_flash",
+      "name": "OpenRouter - Gemini 2.5 Flash",
+      "provider": "openrouter",
+      "model": "google/gemini-2.5-flash",
+      "base_url": "https://openrouter.ai/api/v1",
+      "api_key_env": "OPENROUTER_API_KEY",
+      "decision_interval_sec": 2.0,
+      "description": "通过 OpenRouter 聚合网关调用 Gemini 2.5 Flash，高并发免翻墙，极佳性价比。"
+    },
+    "openrouter_qwen_vl_free": {
+      "id": "openrouter_qwen_vl_free",
+      "name": "OpenRouter - 通义千问 Qwen 2.5 VL (免费版)",
+      "provider": "openrouter",
+      "model": "qwen/qwen-2.5-vl-72b-instruct:free",
+      "base_url": "https://openrouter.ai/api/v1",
+      "api_key_env": "OPENROUTER_API_KEY",
+      "decision_interval_sec": 3.0,
+      "description": "阿里通义千问 72B 多模态视觉开源大模型，带官方免费额度。"
+    },
+    "openrouter_gpt4o_mini": {
+      "id": "openrouter_gpt4o_mini",
+      "name": "OpenRouter - OpenAI GPT-4o Mini",
+      "provider": "openrouter",
+      "model": "openai/gpt-4o-mini",
+      "base_url": "https://openrouter.ai/api/v1",
+      "api_key_env": "OPENROUTER_API_KEY",
+      "decision_interval_sec": 2.5,
+      "description": "OpenAI 轻量旗舰视觉模型，综合指令遵循与空间理解能力出众。"
+    },
+    "openrouter_claude_haiku": {
+      "id": "openrouter_claude_haiku",
+      "name": "OpenRouter - Claude 3.5 Haiku",
+      "provider": "openrouter",
+      "model": "anthropic/claude-3.5-haiku",
+      "base_url": "https://openrouter.ai/api/v1",
+      "api_key_env": "OPENROUTER_API_KEY",
+      "decision_interval_sec": 2.0,
+      "description": "Anthropic 超快速度推理模型，极强逻辑判断力。"
+    },
+    "siliconflow_qwen_vl": {
+      "id": "siliconflow_qwen_vl",
+      "name": "硅基流动 (SiliconFlow) - Qwen 2.5 VL",
+      "provider": "openai_compatible",
+      "model": "Qwen/Qwen2.5-VL-72B-Instruct",
+      "base_url": "https://api.siliconflow.cn/v1",
+      "api_key_env": "SILICONFLOW_API_KEY",
+      "decision_interval_sec": 2.5,
+      "description": "国内直连高速模型算力平台，极低网络延迟。"
+    },
+    "custom_openai_compatible": {
+      "id": "custom_openai_compatible",
+      "name": "自定义 OpenAI 兼容接口 / 本地模型 (Ollama/vLLM)",
+      "provider": "openai_compatible",
+      "model": "qwen2.5-vl:latest",
+      "base_url": "http://localhost:11434/v1",
+      "api_key_env": "CUSTOM_API_KEY",
+      "decision_interval_sec": 2.0,
+      "description": "支持任意 OpenAI 兼容的第三方中转 API、局域网服务器或本地私有化大模型。"
+    }
+  }
+}

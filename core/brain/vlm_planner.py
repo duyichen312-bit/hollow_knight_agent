@@ -11,6 +11,8 @@ import numpy as np
 from PIL import Image
 from dotenv import load_dotenv
 
+from core.brain.profile_manager import ProfileManager
+
 try:
     from google import genai
     from google.genai import types
@@ -44,27 +46,27 @@ def extract_json_from_text(text: str) -> Optional[dict]:
 
 class VLMPlanner:
     """
-    Universal Multimodal Game Walkthrough Brain with Guaranteed JSON Parsing & Logging.
+    Universal Multimodal Game Walkthrough Brain linked with ProfileManager.
     """
     def __init__(self, config: dict = None):
         self.config = config or {}
         self.base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
         
-        # Always load .env from project root
-        env_path = os.path.join(self.base_dir, ".env")
-        load_dotenv(env_path)
+        # Initialize Profile Manager
+        self.pm = ProfileManager(self.base_dir)
+        active_prof = self.pm.get_active_profile()
 
-        self.provider = self.config.get("provider", "gemini").lower()
-        self.model_name = self.config.get("model", "gemini-3.6-flash")
-        
-        self.gemini_key = os.getenv("GEMINI_API_KEY", "")
-        self.openrouter_key = os.getenv("OPENROUTER_API_KEY", "")
+        self.provider = self.config.get("provider", active_prof.get("provider", "gemini")).lower()
+        self.model_name = self.config.get("model", active_prof.get("model", "gemini-3.6-flash"))
+        self.base_url = self.config.get("base_url", active_prof.get("base_url", ""))
+        self.api_key_env = active_prof.get("api_key_env", "GEMINI_API_KEY")
+        self.api_key = self.pm.get_api_key_for_env(self.api_key_env)
         
         self.gemini_client = None
         self.openai_client = None
         
         self.last_query_time = 0.0
-        self.query_interval = self.config.get("decision_interval_sec", 2.0)
+        self.query_interval = float(self.config.get("decision_interval_sec", active_prof.get("decision_interval_sec", 2.0)))
         self.backoff_until = 0.0
         self.last_known_health = 5
 
@@ -87,20 +89,21 @@ class VLMPlanner:
         self._init_clients()
 
     def _init_clients(self):
-        if self.provider == "openrouter":
-            if HAS_OPENAI and self.openrouter_key:
+        if self.provider in ["openrouter", "openai_compatible"]:
+            if HAS_OPENAI and self.api_key:
                 try:
                     self.openai_client = OpenAI(
-                        base_url="https://openrouter.ai/api/v1",
-                        api_key=self.openrouter_key,
+                        base_url=self.base_url if self.base_url else "https://api.openai.com/v1",
+                        api_key=self.api_key,
+                        timeout=15.0
                     )
-                    print(f"[VLM Brain] OpenRouter Client active (Model: {self.model_name}).")
+                    print(f"[VLM Brain] OpenAI/OpenRouter Client active (Model: {self.model_name}, URL: {self.base_url}).")
                 except Exception as e:
-                    print(f"[VLM Brain] OpenRouter init info: {e}")
+                    print(f"[VLM Brain] OpenAI init info: {e}")
         else:
-            if HAS_GENAI and self.gemini_key:
+            if HAS_GENAI and self.api_key:
                 try:
-                    self.gemini_client = genai.Client(api_key=self.gemini_key)
+                    self.gemini_client = genai.Client(api_key=self.api_key)
                     print(f"[VLM Brain] Gemini Native Client active ({self.model_name}).")
                 except Exception as e:
                     print(f"[VLM Brain] Gemini init info: {e}")
@@ -118,8 +121,8 @@ class VLMPlanner:
         try:
             with open(self.jsonl_log_path, "a", encoding="utf-8") as f:
                 f.write(json.dumps(log_entry, ensure_ascii=False) + "\n")
-        except Exception as e:
-            print(f"[Log Error] jsonl write error: {e}")
+        except Exception:
+            pass
 
         try:
             with open(self.text_log_path, "a", encoding="utf-8") as f:
@@ -129,8 +132,8 @@ class VLMPlanner:
                 f.write(f"  - 导航: 方向={data.get('direction')}, 垂直动作={data.get('vertical_action')}, 模式={data.get('navigation_mode')}\n")
                 f.write(f"  - 战术: {data.get('tactic')}\n")
                 f.write("-" * 75 + "\n")
-        except Exception as e:
-            print(f"[Log Error] text write error: {e}")
+        except Exception:
+            pass
 
     def update_strategy_async(self, frame: np.ndarray, hud_info: dict, knight_pos: tuple = (0, 0)):
         now = time.time()
@@ -186,7 +189,7 @@ class VLMPlanner:
 }}
 """
             data = None
-            if self.provider == "openrouter" and self.openai_client:
+            if self.openai_client:
                 _, buffer = cv2.imencode(".jpg", small_frame, [cv2.IMWRITE_JPEG_QUALITY, 80])
                 b64_img = base64.b64encode(buffer).decode("utf-8")
                 
@@ -225,14 +228,12 @@ class VLMPlanner:
                 self.current_strategy = data
                 self._record_decision_log(data, knight_pos)
                 print(f"\n==========================================================================")
-                print(f"  [GEMINI 3.6 动态大模型指令已生成并记录]")
+                print(f"  [{self.model_name} 动态指令已记录]")
                 print(f"  - 地形/位置: {data.get('current_location')}")
                 print(f"  - 阶段: {data.get('exploration_phase')} | 导航模式: {data.get('navigation_mode')}")
                 print(f"  - 宏观目标: {data.get('macro_goal')}")
                 print(f"  - 战术指令: {data.get('tactic')}")
                 print(f"==========================================================================\n")
-            else:
-                print(f"[VLM Brain] Warning: Failed to extract JSON.")
 
         except Exception as e:
             err_str = str(e)

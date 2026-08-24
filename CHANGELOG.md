@@ -5,20 +5,19 @@ The project adheres to [Semantic Versioning](https://semver.org/).
 
 ---
 
-## [v1.0.0-stable] - 2026-08-24 (Baseline Frozen Release)
+## [v1.1.0] - 2026-08-24 (Model Profiles Hub & GUI Manager)
 
-### 🌟 Core Architectural Features:
-- **双环架构 (Dual-Loop Architecture)**:
-  - **战略大脑 (VLM Strategic Brain)**: 基于 Gemini 3.6 Flash，支持位置感知、全关卡拓扑解析、动态指令生成与日志持久化。
-  - **战术小脑 (60Hz Reflex Cerebellum)**: 本地毫秒级微操（闪避、普攻三连击、空中下劈弹刀 Pogo、吉欧采矿）。
-- **2D 银河恶魔城立体导航 (2D Spatial Metroidvania Navigation)**:
-  - **死胡同两阶段脱困**: 识别不可破坏实心墙壁后，执行 6 秒纯地面长程大撤离 + 10 秒深度立体搜索。
-  - **超宽禁区防折返**: 600px 范围锁定与 45 秒死墙黑名单记忆。
-  - **阶梯平台优先大跳攀登**: 遇到上方石阶与悬浮平台优先高频长蓄力大跳（0.38s High Jump）。
-  - **DFS 回眸侦察**: 每走两步（1.8s）极速转身 0.18s 侦察身后遗漏金币与偷袭敌人。
-- **全链路日志系统 (Persistent Decision Logging)**:
-  - `logs/vlm_journal.log`: 人类可读的战术演进时间轴。
-  - `logs/vlm_decisions.jsonl`: 结构化数据流水，记录每一帧的模型决策与坐标。
-- **纯净沉浸运行模式 (Clean Native Mode)**:
-  - 一键后台启动 (`run_agent.bat`)，游戏独占前台全屏焦点，Windows 底层硬件级 DirectInput 扫描码注入。
-  - 一键安全退出 (`stop_agent.bat`)。
+### 🌟 New Features & Enhancements:
+- **大模型多预设配置包 (Model Profiles)**:
+  - 提供了预先配置好的各大主流大模型配置包：Google Gemini 官方付费版、OpenRouter (Gemini 2.5 Flash / Qwen 2.5 VL 免费版 / GPT-4o-mini / Claude 3.5 Haiku)、硅基流动 (SiliconFlow) 以及自定义/私有化本地模型 (Ollama/vLLM)。
+- **桌面端可视化控制中心 (Model Hub GUI)**:
+  - 新增 [`launch_model_hub.bat`](./launch_model_hub.bat) 一键启动可视化控制面板 (`model_hub_gui.py`)。
+  - 支持一键下拉切换大模型配置包、在线编辑模型名称/Base URL/API Key、一键执行毫秒级连通性心跳测速，并在界面内一键启动/停止游戏 AI！
+- **全格式兼容调度器 (Universal Profile Manager)**:
+  - 核心大脑 `vlm_planner.py` 与 `profile_manager.py` 全面联动，模型切换实时生效且保持全量日志追踪。
+
+---
+
+## [v1.0.0-stable] - 2026-08-24 (Baseline Release)
+- 双环架构（Gemini 3.6 Flash VLM 战略大脑 + 60Hz 本地战术小脑）。
+- 2D 银河恶魔城立体导航、长程死胡同脱困、DFS 节奏回眸与全量决策日志持久化。
